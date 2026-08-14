@@ -18,6 +18,8 @@ export default defineConfig(async () => ({
     port: 1420,
     strictPort: true,
     host: host || false,
+    // Allow the Arena live-preview proxy host in addition to localhost.
+    allowedHosts: true,
     hmr: host
       ? {
           protocol: "ws",
