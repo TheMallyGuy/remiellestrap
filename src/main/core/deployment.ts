@@ -279,10 +279,16 @@ export function packageDirectoryMap(binaryType: BinaryType): Record<string, stri
 }
 
 /**
- * WebView2RuntimeInstaller is only extracted when the runtime is missing, so
- * it is excluded from the normal package set.
+ * Packages the stock bootstrapper never installs: WebView2RuntimeInstaller is
+ * only used when the runtime is missing, and RobloxPlayerInstaller.exe is the
+ * legacy standalone installer (not an archive at all, so it must never reach
+ * the zip integrity check or extraction).
  */
-export const CONDITIONAL_PACKAGES = new Set(['WebView2RuntimeInstaller.zip'])
+export const CONDITIONAL_PACKAGES = new Set([
+  'WebView2RuntimeInstaller.zip',
+  'RobloxPlayerInstaller.exe',
+  'RobloxStudioInstaller.exe'
+])
 
 export function executableName(binaryType: BinaryType): string {
   return binaryType === 'WindowsStudio64' ? 'RobloxStudioBeta.exe' : 'RobloxPlayerBeta.exe'
