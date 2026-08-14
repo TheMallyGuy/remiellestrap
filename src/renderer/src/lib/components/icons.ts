@@ -1,0 +1,37 @@
+/**
+ * The names of every glyph `Icon.svelte` can draw. Kept in a plain module so
+ * the union can be imported by components and by type-only consumers alike.
+ */
+
+export type IconName =
+  | 'home'
+  | 'palette'
+  | 'sliders'
+  | 'flag'
+  | 'layers'
+  | 'plug'
+  | 'download'
+  | 'info'
+  | 'play'
+  | 'refresh'
+  | 'shuffle'
+  | 'external'
+  | 'folder'
+  | 'trash'
+  | 'plus'
+  | 'check'
+  | 'x'
+  | 'minus'
+  | 'square'
+  | 'copy'
+  | 'search'
+  | 'chevron-down'
+  | 'chevron-right'
+  | 'grip'
+  | 'alert'
+  | 'clock'
+  | 'discord'
+  | 'github'
+  | 'spinner'
+  | 'prism'
+  | 'code'

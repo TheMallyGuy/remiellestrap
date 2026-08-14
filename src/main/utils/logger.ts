@@ -1,4 +1,12 @@
-import { createWriteStream, existsSync, mkdirSync, readdirSync, statSync, unlinkSync, WriteStream } from 'fs'
+import {
+  createWriteStream,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  statSync,
+  unlinkSync,
+  WriteStream
+} from 'fs'
 import { join } from 'path'
 import { paths } from './paths'
 
@@ -20,7 +28,10 @@ function timestamp(): string {
 }
 
 function fileStamp(): string {
-  return new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')
+  return new Date()
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\.\d{3}Z$/, 'Z')
 }
 
 export function initLogger(): string {

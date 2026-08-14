@@ -10,13 +10,7 @@ import type {
 } from '@shared/models'
 import { createLogger } from '../utils/logger'
 import { paths, stockRobloxRoot, versionDirectory } from '../utils/paths'
-import {
-  ensureDir,
-  formatBytes,
-  pathExists,
-  removeDir,
-  removeFile
-} from '../utils/fs'
+import { ensureDir, formatBytes, pathExists, removeDir, removeFile } from '../utils/fs'
 import { md5File } from '../utils/hash'
 import { extractZip } from '../utils/zip'
 import { buildRobloxArguments, parseLaunchUri, type ParsedLaunchUri } from '../utils/uri'
@@ -299,9 +293,7 @@ async function ensureInstalled(options: InstallOptions): Promise<string> {
     if (!archive) continue
 
     const relativeTarget = directoryMap[entry.name] ?? ''
-    const destination = relativeTarget
-      ? join(directory, ...relativeTarget.split('/'))
-      : directory
+    const destination = relativeTarget ? join(directory, ...relativeTarget.split('/')) : directory
 
     await ensureDir(destination)
     await extractZip(archive, destination, { signal })
@@ -393,7 +385,12 @@ export interface InstallRunOptions {
  */
 export async function run(options: InstallRunOptions = {}): Promise<BootstrapperResult> {
   if (running) {
-    return { ok: false, version: null, launched: false, message: 'A bootstrapper run is already in progress' }
+    return {
+      ok: false,
+      version: null,
+      launched: false,
+      message: 'A bootstrapper run is already in progress'
+    }
   }
 
   running = true
@@ -481,7 +478,13 @@ export async function run(options: InstallRunOptions = {}): Promise<Bootstrapper
 
     const message = error instanceof Error ? error.message : String(error)
     logger.error(`Bootstrapper run failed: ${message}`)
-    report({ stage: 'error', message: 'Something went wrong', detail: message, progress: null, cancellable: false })
+    report({
+      stage: 'error',
+      message: 'Something went wrong',
+      detail: message,
+      progress: null,
+      cancellable: false
+    })
     emit('bootstrapper:error', { message: 'Roblox could not be started', detail: message })
 
     return { ok: false, version: null, launched: false, message }
@@ -512,7 +515,9 @@ async function launchClient(
     extraArguments: settings.launchArguments
   })
 
-  logger.info(`Launching ${executable} ${args.map((a) => (a.length > 80 ? `${a.slice(0, 80)}…` : a)).join(' ')}`)
+  logger.info(
+    `Launching ${executable} ${args.map((a) => (a.length > 80 ? `${a.slice(0, 80)}…` : a)).join(' ')}`
+  )
 
   const child = spawn(executable, args, {
     cwd: workingDirectory,
@@ -537,7 +542,9 @@ export async function install(force = false): Promise<BootstrapperResult> {
   return run({ force, launch: false })
 }
 
-export async function launch(request: LaunchRequest | null | undefined): Promise<BootstrapperResult> {
+export async function launch(
+  request: LaunchRequest | null | undefined
+): Promise<BootstrapperResult> {
   return run({ launch: true, rawUri: request?.uri ?? null })
 }
 

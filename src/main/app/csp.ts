@@ -28,9 +28,16 @@ const ALLOWED_EXTERNAL_HOSTS = new Set([
 ])
 
 function buildPolicy(): string {
-  // Vite's dev server needs inline styles and a websocket for HMR; the packaged
-  // build gets the strict policy.
-  const styleSrc = is.dev ? "'self' 'unsafe-inline'" : "'self' 'unsafe-inline'"
+  // Vite's dev server needs eval and a websocket for HMR; the packaged build
+  // gets the strict policy.
+  //
+  // `style-src` keeps 'unsafe-inline' in BOTH modes, deliberately: Svelte emits
+  // inline `style="..."` attributes for its own transitions and for any
+  // `style:` directive, and Tailwind v4 injects its theme custom properties
+  // through a style element. Dropping it would break the built app, not just
+  // dev. Inline styles are not a script-execution vector, and `script-src`
+  // stays strict in production, which is where the actual risk lives.
+  const styleSrc = "'self' 'unsafe-inline'"
   const scriptSrc = is.dev ? "'self' 'unsafe-inline' 'unsafe-eval'" : "'self'"
   const connectSrc = is.dev ? "'self' ws: http://localhost:* http://127.0.0.1:*" : "'self'"
 

@@ -22,10 +22,14 @@ function openZip(file: string): Promise<yauzl.ZipFile> {
     // decodeStrings:false stops yauzl from validating entry names and emitting
     // a fatal 'error' on hostile archives. We decode and vet names ourselves in
     // normaliseEntryName so a single bad entry is skipped, not fatal.
-    yauzl.open(file, { lazyEntries: true, autoClose: true, decodeStrings: false }, (err, zipfile) => {
-      if (err || !zipfile) reject(err ?? new Error(`Unable to open archive: ${file}`))
-      else resolve(zipfile)
-    })
+    yauzl.open(
+      file,
+      { lazyEntries: true, autoClose: true, decodeStrings: false },
+      (err, zipfile) => {
+        if (err || !zipfile) reject(err ?? new Error(`Unable to open archive: ${file}`))
+        else resolve(zipfile)
+      }
+    )
   })
 }
 

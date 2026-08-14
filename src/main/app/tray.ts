@@ -105,9 +105,10 @@ function refresh(): void {
   if (!tray || tray.isDestroyed()) return
 
   const current = activity.currentActivity()
-  const tooltip = current.inGame && current.activity
-    ? `RemielleStrap — ${truncate(current.activity.gameName ?? `Place ${current.activity.placeId}`, 60)}`
-    : 'RemielleStrap'
+  const tooltip =
+    current.inGame && current.activity
+      ? `RemielleStrap — ${truncate(current.activity.gameName ?? `Place ${current.activity.placeId}`, 60)}`
+      : 'RemielleStrap'
 
   tray.setToolTip(tooltip)
   tray.setContextMenu(buildMenu())

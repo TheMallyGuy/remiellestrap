@@ -23,7 +23,17 @@ const MAX_PROFILES = 50
 const MAX_FLAGS_PER_PROFILE = 2000
 
 /** Prefixes the client recognises; used to warn on obviously bogus names. */
-const KNOWN_PREFIXES = ['FFlag', 'DFFlag', 'SFFlag', 'FInt', 'DFInt', 'FString', 'DFString', 'FLog', 'DFLog']
+const KNOWN_PREFIXES = [
+  'FFlag',
+  'DFFlag',
+  'SFFlag',
+  'FInt',
+  'DFInt',
+  'FString',
+  'DFString',
+  'FLog',
+  'DFLog'
+]
 
 export function isValidFlagName(name: string): boolean {
   return FLAG_NAME_PATTERN.test(name)
@@ -82,10 +92,7 @@ function sanitizeProfileName(name: string): string {
     .slice(0, 64)
 }
 
-function toProfiles(
-  raw: Record<string, Record<string, unknown>>,
-  active: string
-): FlagProfile[] {
+function toProfiles(raw: Record<string, Record<string, unknown>>, active: string): FlagProfile[] {
   return Object.entries(raw)
     .map(([name, flags]) => {
       const sanitized = sanitizeFlags(flags)
@@ -201,9 +208,7 @@ export function activeFlags(): Record<string, FlagValue> {
   return sanitizeFlags(settings.flagProfiles[settings.activeFlagProfile] ?? {})
 }
 
-export async function importFromJson(
-  targetName?: string
-): Promise<OperationResult<FlagProfile[]>> {
+export async function importFromJson(targetName?: string): Promise<OperationResult<FlagProfile[]>> {
   const result = await dialog.showOpenDialog({
     title: 'Import FastFlag profile',
     filters: [{ name: 'JSON', extensions: ['json'] }],
@@ -227,7 +232,12 @@ export async function importFromJson(
 
     const baseName =
       sanitizeProfileName(targetName ?? '') ||
-      sanitizeProfileName(file.split(/[\\/]/).pop()?.replace(/\.json$/i, '') ?? '') ||
+      sanitizeProfileName(
+        file
+          .split(/[\\/]/)
+          .pop()
+          ?.replace(/\.json$/i, '') ?? ''
+      ) ||
       'Imported'
 
     const settings = getSettings()
@@ -266,7 +276,10 @@ export async function exportToJson(name: string): Promise<OperationResult<string
     return { ok: true, data: result.filePath }
   } catch (error) {
     logger.error(`FastFlag export failed: ${String(error)}`)
-    return { ok: false, error: error instanceof Error ? error.message : 'Could not write that file' }
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : 'Could not write that file'
+    }
   }
 }
 

@@ -64,7 +64,11 @@ async function request(url: string, options: RequestOptions = {}): Promise<Respo
       if (!response.ok) {
         // 4xx responses are not worth retrying, except for rate limiting.
         if (response.status < 500 && response.status !== 429) {
-          throw new HttpError(`HTTP ${response.status} ${response.statusText}`, response.status, url)
+          throw new HttpError(
+            `HTTP ${response.status} ${response.statusText}`,
+            response.status,
+            url
+          )
         }
         throw new HttpError(`HTTP ${response.status} ${response.statusText}`, response.status, url)
       }
@@ -104,7 +108,10 @@ export async function getText(url: string, options?: RequestOptions): Promise<st
 }
 
 export async function getJson<T>(url: string, options?: RequestOptions): Promise<T> {
-  const response = await request(url, { ...options, headers: { Accept: 'application/json', ...options?.headers } })
+  const response = await request(url, {
+    ...options,
+    headers: { Accept: 'application/json', ...options?.headers }
+  })
   const text = await response.text()
   if (text.trim().length === 0) return [] as unknown as T
   try {

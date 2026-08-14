@@ -37,7 +37,9 @@ export function isQuitting(): boolean {
 }
 
 /** Clamps remembered geometry so the window can never open off-screen. */
-function restoreBounds(bounds: WindowBounds | null): Partial<Electron.BrowserWindowConstructorOptions> {
+function restoreBounds(
+  bounds: WindowBounds | null
+): Partial<Electron.BrowserWindowConstructorOptions> {
   if (!bounds) return { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT }
 
   const width = Math.max(MIN_WIDTH, Math.round(bounds.width) || DEFAULT_WIDTH)

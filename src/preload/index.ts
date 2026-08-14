@@ -174,7 +174,9 @@ const api = {
     getState: (): Promise<AppState> => invoke('system:getState'),
     getRobloxState: (): Promise<RobloxState> => invoke('system:getRobloxState'),
     chooseInstallLocation: (): Promise<OperationResult<string>> =>
-      invoke('system:chooseInstallLocation')
+      invoke('system:chooseInstallLocation'),
+    copyToClipboard: (text: string): Promise<OperationResult> =>
+      invoke('system:copyToClipboard', { text })
   },
 
   window: {

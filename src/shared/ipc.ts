@@ -94,6 +94,7 @@ export interface InvokeMap {
   'system:getState': { request: void; response: AppState }
   'system:getRobloxState': { request: void; response: RobloxState }
   'system:chooseInstallLocation': { request: void; response: OperationResult<string> }
+  'system:copyToClipboard': { request: { text: string }; response: OperationResult }
 
   /* window controls */
   'window:minimize': { request: void; response: void }
@@ -174,6 +175,7 @@ export const INVOKE_CHANNELS = [
   'system:getState',
   'system:getRobloxState',
   'system:chooseInstallLocation',
+  'system:copyToClipboard',
   'window:minimize',
   'window:maximize',
   'window:close',

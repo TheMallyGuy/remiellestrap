@@ -9,7 +9,13 @@ export type AccentMode = 'gold' | 'prism'
 export type LaunchMode = 'player' | 'studio'
 export type ProcessPriority = 'normal' | 'abovenormal' | 'high'
 
-export const ART_SLOTS = ['splash', 'home_banner', 'sidebar', 'about_header', 'bootstrapper'] as const
+export const ART_SLOTS = [
+  'splash',
+  'home_banner',
+  'sidebar',
+  'about_header',
+  'bootstrapper'
+] as const
 export type ArtSlot = (typeof ART_SLOTS)[number]
 
 export type BooruTagMap = Record<ArtSlot, string>

@@ -1,6 +1,12 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron'
 import { release } from 'os'
-import type { IpcMainInvokeEvent } from 'electron'
+import type {
+  IpcMainInvokeEvent,
+  OpenDialogOptions,
+  OpenDialogReturnValue,
+  SaveDialogOptions,
+  SaveDialogReturnValue
+} from 'electron'
 import type { InvokeChannel, InvokeMap } from '@shared/ipc'
 import { INVOKE_CHANNELS } from '@shared/ipc'
 import type {
@@ -23,7 +29,6 @@ import * as booru from '../services/booru'
 import * as fastflags from '../services/fastflags'
 import * as mods from '../services/mods'
 import * as activity from '../services/activity'
-import * as rpc from '../services/rpc'
 import * as bootstrapper from '../core/bootstrapper'
 import { emit } from '../services/events'
 import {
@@ -72,6 +77,26 @@ export function takePendingUri(): string | null {
 
 function windowFor(event: IpcMainInvokeEvent): BrowserWindow | null {
   return BrowserWindow.fromWebContents(event.sender)
+}
+
+/**
+ * `dialog.show*Dialog` is overloaded: passing a parent window makes the dialog
+ * sheet-modal on macOS, while the parentless overload is a separate signature
+ * that does not accept `undefined`. These wrappers pick the right overload
+ * instead of lying to the type system with a non-null assertion.
+ */
+function saveDialog(
+  parent: BrowserWindow | null,
+  options: SaveDialogOptions
+): Promise<SaveDialogReturnValue> {
+  return parent ? dialog.showSaveDialog(parent, options) : dialog.showSaveDialog(options)
+}
+
+function openDialog(
+  parent: BrowserWindow | null,
+  options: OpenDialogOptions
+): Promise<OpenDialogReturnValue> {
+  return parent ? dialog.showOpenDialog(parent, options) : dialog.showOpenDialog(options)
 }
 
 function ok<T>(data?: T): OperationResult<T> {
@@ -128,8 +153,7 @@ const handlers: HandlerMap = {
   'settings:reset': async () => settingsStore.resetSettings(),
 
   'settings:export': async (_request, event) => {
-    const window = windowFor(event)
-    const result = await dialog.showSaveDialog(window ?? undefined!, {
+    const result = await saveDialog(windowFor(event), {
       title: 'Export settings',
       defaultPath: 'RemielleStrap-Settings.json',
       filters: [{ name: 'JSON', extensions: ['json'] }]
@@ -146,8 +170,7 @@ const handlers: HandlerMap = {
   },
 
   'settings:import': async (_request, event) => {
-    const window = windowFor(event)
-    const result = await dialog.showOpenDialog(window ?? undefined!, {
+    const result = await openDialog(windowFor(event), {
       title: 'Import settings',
       filters: [{ name: 'JSON', extensions: ['json'] }],
       properties: ['openFile']
@@ -346,11 +369,12 @@ const handlers: HandlerMap = {
 
   'system:openRobloxDir': async () => {
     const state = stateStore.getRobloxState()
-    const target = state.installPath && (await pathExists(state.installPath))
-      ? state.installPath
-      : (await pathExists(paths.versions))
-        ? paths.versions
-        : stockRobloxRoot()
+    const target =
+      state.installPath && (await pathExists(state.installPath))
+        ? state.installPath
+        : (await pathExists(paths.versions))
+          ? paths.versions
+          : stockRobloxRoot()
 
     if (!(await pathExists(target))) return failed('No Roblox installation was found')
     return revealDirectory(target)
@@ -380,14 +404,22 @@ const handlers: HandlerMap = {
   'system:getRobloxState': async () => stateStore.getRobloxState(),
 
   'system:chooseInstallLocation': async (_request, event) => {
-    const window = windowFor(event)
-    const result = await dialog.showOpenDialog(window ?? undefined!, {
+    const result = await openDialog(windowFor(event), {
       title: 'Choose install location',
       properties: ['openDirectory', 'createDirectory']
     })
 
     if (result.canceled || result.filePaths.length === 0) return failed('Selection cancelled')
     return ok(result.filePaths[0])
+  },
+
+  'system:copyToClipboard': async (request) => {
+    const raw = requireObject(request, 'clipboard')
+    // Capped well above any realistic flag map but far below anything that
+    // would let a compromised renderer wedge the clipboard.
+    const text = requireString(raw.text, 'text', 200_000)
+    clipboard.writeText(text)
+    return ok()
   },
 
   /* ---------------------------------------------------------- window */
@@ -490,4 +522,3 @@ export function disposeIpcHandlers(): void {
 }
 
 /** Re-export so the app layer can react to settings-driven RPC changes. */
-export { rpc }

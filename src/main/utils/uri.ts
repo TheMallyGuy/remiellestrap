@@ -210,9 +210,7 @@ export function parseExtraArguments(input: string): string[] {
   if (FORBIDDEN.test(input)) return []
 
   const matches = input.match(/(?:[^\s"]+|"[^"]*")+/g) ?? []
-  return matches
-    .map((token) => token.replace(/^"|"$/g, ''))
-    .filter((token) => token.length > 0)
+  return matches.map((token) => token.replace(/^"|"$/g, '')).filter((token) => token.length > 0)
 }
 
 /** Builds a roblox-player URI for rejoining a specific place/instance. */

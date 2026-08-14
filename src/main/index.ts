@@ -12,7 +12,13 @@ import * as booru from './services/booru'
 import { disposeIpcHandlers, registerIpcHandlers } from './ipc/index'
 import { installCsp } from './app/csp'
 import { registerProtocolHandler, registerSchemes } from './app/protocol'
-import { createMainWindow, getMainWindow, isQuitting, setQuitting, showMainWindow } from './app/window'
+import {
+  createMainWindow,
+  getMainWindow,
+  isQuitting,
+  setQuitting,
+  showMainWindow
+} from './app/window'
 import { createTray, destroyTray } from './app/tray'
 import { disposeNotifications, registerNotifications } from './app/notifications'
 import {

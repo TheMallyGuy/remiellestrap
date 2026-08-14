@@ -96,7 +96,11 @@ async function reconcile(): Promise<ModIndex> {
     nextPriority += 1
     mods.push({
       id: directory,
-      name: directory.replace(/-[a-f0-9]{6,}$/i, '').replace(/[-_]+/g, ' ').trim() || directory,
+      name:
+        directory
+          .replace(/-[a-f0-9]{6,}$/i, '')
+          .replace(/[-_]+/g, ' ')
+          .trim() || directory,
       priority: nextPriority,
       addedAt: Date.now(),
       description: null
@@ -138,11 +142,7 @@ export async function listMods(): Promise<ModEntry[]> {
   return entries
 }
 
-async function registerMod(
-  id: string,
-  name: string,
-  description: string | null
-): Promise<void> {
+async function registerMod(id: string, name: string, description: string | null): Promise<void> {
   const index = await readIndex()
   const priority = index.mods.reduce((max, mod) => Math.max(max, mod.priority), 0) + 1
   index.mods.push({ id, name, priority, addedAt: Date.now(), description })
@@ -325,7 +325,9 @@ function isHexColor(value: string): boolean {
  * flat single-colour PNGs over the stock textures. Only geometry-free solid
  * colours are produced — nothing is downloaded or AI-generated.
  */
-export async function generateColorMod(request: ColorModRequest): Promise<OperationResult<ModEntry[]>> {
+export async function generateColorMod(
+  request: ColorModRequest
+): Promise<OperationResult<ModEntry[]>> {
   const color = request.color?.trim() ?? ''
   if (!isHexColor(color)) {
     return { ok: false, error: 'Provide a colour as a hex value such as #101014' }

@@ -31,7 +31,9 @@ export async function loadState(): Promise<AppState> {
   appState = {
     ...DEFAULT_APP_STATE,
     ...raw,
-    recentActivity: Array.isArray(raw.recentActivity) ? raw.recentActivity.slice(0, MAX_RECENT_ACTIVITY) : [],
+    recentActivity: Array.isArray(raw.recentActivity)
+      ? raw.recentActivity.slice(0, MAX_RECENT_ACTIVITY)
+      : [],
     booruCache: typeof raw.booruCache === 'object' && raw.booruCache !== null ? raw.booruCache : {},
     dismissedNotices: Array.isArray(raw.dismissedNotices) ? raw.dismissedNotices : []
   }
@@ -55,10 +57,10 @@ export async function saveState(patch: Partial<AppState>): Promise<AppState> {
 
 export async function recordActivity(entry: ActivityEntry): Promise<void> {
   const current = await loadState()
-  const recent = [entry, ...current.recentActivity.filter((item) => item.jobId !== entry.jobId)].slice(
-    0,
-    MAX_RECENT_ACTIVITY
-  )
+  const recent = [
+    entry,
+    ...current.recentActivity.filter((item) => item.jobId !== entry.jobId)
+  ].slice(0, MAX_RECENT_ACTIVITY)
   await saveState({ lastActivity: entry, recentActivity: recent })
 }
 

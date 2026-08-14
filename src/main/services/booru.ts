@@ -1,6 +1,12 @@
 import { promises as fs } from 'fs'
 import { extname, join } from 'path'
-import type { ArtAsset, ArtRequest, BooruPost, BooruSearchRequest, CacheStats } from '@shared/models'
+import type {
+  ArtAsset,
+  ArtRequest,
+  BooruPost,
+  BooruSearchRequest,
+  CacheStats
+} from '@shared/models'
 import { DEFAULT_BOORU_TAGS, type ArtSlot, ART_SLOTS } from '@shared/settings'
 import type { CachedArt } from '@shared/state'
 import { paths } from '../utils/paths'
@@ -57,7 +63,9 @@ interface RawPost {
  * Safebooru's json=1 responses omit absolute URLs in some deployments, so we
  * reconstruct them from `directory` + `image` the same way the site does.
  */
-function buildUrls(raw: RawPost): { fileUrl: string; previewUrl: string; sampleUrl: string | null } | null {
+function buildUrls(
+  raw: RawPost
+): { fileUrl: string; previewUrl: string; sampleUrl: string | null } | null {
   if (raw.file_url && raw.preview_url) {
     return {
       fileUrl: raw.file_url,
@@ -113,7 +121,10 @@ function buildSearchUrl(tags: string, page: number, limit: number): string {
 }
 
 /** Raw Safebooru search. Returns [] when nothing matches. */
-export async function searchPosts(request: BooruSearchRequest, signal?: AbortSignal): Promise<BooruPost[]> {
+export async function searchPosts(
+  request: BooruSearchRequest,
+  signal?: AbortSignal
+): Promise<BooruPost[]> {
   const tags = (request.tags ?? '').trim()
   if (tags.length === 0) return []
 
@@ -121,7 +132,10 @@ export async function searchPosts(request: BooruSearchRequest, signal?: AbortSig
   logger.info(`Searching: ${tags} (page ${request.page ?? 0})`)
 
   try {
-    const payload = await getJson<RawPost[] | { post?: RawPost[] } | null>(url, { signal, retries: 2 })
+    const payload = await getJson<RawPost[] | { post?: RawPost[] } | null>(url, {
+      signal,
+      retries: 2
+    })
 
     // Safebooru returns a bare array, an empty string, or occasionally an
     // object wrapper depending on the result count.
@@ -186,7 +200,11 @@ function cacheFileName(postId: number, url: string): string {
 }
 
 /** Downloads an image into the art cache and returns the local file name. */
-async function cacheImage(url: string, postId: number, signal?: AbortSignal): Promise<string | null> {
+async function cacheImage(
+  url: string,
+  postId: number,
+  signal?: AbortSignal
+): Promise<string | null> {
   const fileName = cacheFileName(postId, url)
   const target = join(paths.artCache, fileName)
 
@@ -256,7 +274,10 @@ function choosePost(posts: BooruPost[], slot: string, excludeId?: number | null)
  *   2. a fresh search using the slot's configured tags (with fallbacks)
  *   3. null, letting the UI fall back to its typographic treatment
  */
-export async function getArtForSlot(request: ArtRequest, signal?: AbortSignal): Promise<ArtAsset | null> {
+export async function getArtForSlot(
+  request: ArtRequest,
+  signal?: AbortSignal
+): Promise<ArtAsset | null> {
   const slot = request.slot
   if (!ART_SLOTS.includes(slot as ArtSlot)) {
     throw new Error(`Unknown art slot: ${slot}`)
@@ -266,7 +287,10 @@ export async function getArtForSlot(request: ArtRequest, signal?: AbortSignal): 
   await loadState()
   const state = getState()
   const cached = state.booruCache[slot]
-  const configuredTags = request.tags?.trim() || settings.booruTags[slot as ArtSlot] || DEFAULT_BOORU_TAGS[slot as ArtSlot]
+  const configuredTags =
+    request.tags?.trim() ||
+    settings.booruTags[slot as ArtSlot] ||
+    DEFAULT_BOORU_TAGS[slot as ArtSlot]
 
   // Reuse the persisted choice unless the caller explicitly asked to re-roll
   // or the configured tags changed since it was cached.
@@ -280,7 +304,9 @@ export async function getArtForSlot(request: ArtRequest, signal?: AbortSignal): 
   const { posts } = await searchWithFallback(configuredTags, slot, signal)
   if (posts.length === 0) {
     logger.warn(`No artwork available for slot ${slot}`)
-    return cached && (await pathExists(join(paths.artCache, cached.fileName))) ? toAsset(cached) : null
+    return cached && (await pathExists(join(paths.artCache, cached.fileName)))
+      ? toAsset(cached)
+      : null
   }
 
   const previousId = request.shuffle ? (cached?.postId ?? null) : null
@@ -293,7 +319,9 @@ export async function getArtForSlot(request: ArtRequest, signal?: AbortSignal): 
 
   const fileName = await cacheImage(sourceUrl, post.id, signal)
   if (!fileName) {
-    return cached && (await pathExists(join(paths.artCache, cached.fileName))) ? toAsset(cached) : null
+    return cached && (await pathExists(join(paths.artCache, cached.fileName)))
+      ? toAsset(cached)
+      : null
   }
 
   const previewFileName = await cacheImage(post.previewUrl, post.id, signal).catch(() => null)

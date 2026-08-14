@@ -82,7 +82,10 @@ function coerceFlagProfiles(value: unknown): Record<string, Record<string, unkno
     if (typeof flags !== 'object' || flags === null) continue
 
     const cleanFlags: Record<string, unknown> = {}
-    for (const [flagName, flagValue] of Object.entries(flags as Record<string, unknown>).slice(0, 2000)) {
+    for (const [flagName, flagValue] of Object.entries(flags as Record<string, unknown>).slice(
+      0,
+      2000
+    )) {
       if (!/^[A-Za-z0-9_.]{1,128}$/.test(flagName)) continue
       const coerced = coerceFlagValue(flagValue)
       if (coerced !== null) cleanFlags[flagName] = coerced
@@ -112,7 +115,10 @@ function coerceBounds(value: unknown): AppSettings['windowBounds'] {
 
 /** Normalises any untrusted object into a complete, valid AppSettings. */
 export function coerceSettings(input: unknown, base: AppSettings = DEFAULT_SETTINGS): AppSettings {
-  const source = (typeof input === 'object' && input !== null ? input : {}) as Record<string, unknown>
+  const source = (typeof input === 'object' && input !== null ? input : {}) as Record<
+    string,
+    unknown
+  >
 
   const flagProfiles = coerceFlagProfiles(
     'flagProfiles' in source ? source.flagProfiles : base.flagProfiles
@@ -127,7 +133,8 @@ export function coerceSettings(input: unknown, base: AppSettings = DEFAULT_SETTI
     : Object.keys(flagProfiles)[0]
 
   const has = (key: string): boolean => Object.prototype.hasOwnProperty.call(source, key)
-  const value = <K extends keyof AppSettings>(key: K): unknown => (has(key) ? source[key] : base[key])
+  const value = <K extends keyof AppSettings>(key: K): unknown =>
+    has(key) ? source[key] : base[key]
 
   return {
     theme: pick(value('theme'), ['dark', 'light', 'system'] as const, base.theme),
