@@ -234,7 +234,20 @@ async function ensureInstalled(options: InstallOptions): Promise<string> {
   throwIfCancelled(signal)
 
   const directoryMap = packageDirectoryMap(binaryType)
-  const packages = manifest.filter((entry) => !CONDITIONAL_PACKAGES.has(entry.name))
+  // The manifest also lists non-package artefacts such as
+  // RobloxPlayerInstaller.exe / RobloxPlayerLauncher.exe. They are not zips and
+  // have no extraction target, so keep only real, mapped package archives.
+  const packages = manifest.filter(
+    (entry) =>
+      !CONDITIONAL_PACKAGES.has(entry.name) &&
+      entry.name.toLowerCase().endsWith('.zip') &&
+      directoryMap[entry.name] !== undefined
+  )
+  for (const entry of manifest) {
+    if (!packages.includes(entry) && !CONDITIONAL_PACKAGES.has(entry.name)) {
+      logger.info(`Skipping unmapped manifest entry ${entry.name}`)
+    }
+  }
   const totalBytes = packages.reduce((sum, entry) => sum + entry.packedSize, 0)
 
   logger.info(
