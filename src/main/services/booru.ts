@@ -1,10 +1,10 @@
 import { promises as fs } from 'fs'
 import { extname, join } from 'path'
-import { pathToFileURL } from 'url'
 import type { ArtAsset, ArtRequest, BooruPost, BooruSearchRequest, CacheStats } from '@shared/models'
 import { DEFAULT_BOORU_TAGS, type ArtSlot, ART_SLOTS } from '@shared/settings'
 import type { CachedArt } from '@shared/state'
 import { paths } from '../utils/paths'
+import { artUrl } from '../app/protocol'
 import { dirStats, ensureDir, pathExists, removeDir } from '../utils/fs'
 import { shortId } from '../utils/hash'
 import { createLogger } from '../utils/logger'
@@ -212,14 +212,11 @@ async function cacheImage(url: string, postId: number, signal?: AbortSignal): Pr
 }
 
 function toAsset(cached: CachedArt): ArtAsset {
-  const filePath = join(paths.artCache, cached.fileName)
-  const previewPath = cached.previewFileName ? join(paths.artCache, cached.previewFileName) : null
-
   return {
     slot: cached.slot,
     postId: cached.postId,
-    url: pathToFileURL(filePath).toString(),
-    previewUrl: previewPath ? pathToFileURL(previewPath).toString() : null,
+    url: artUrl(cached.fileName),
+    previewUrl: cached.previewFileName ? artUrl(cached.previewFileName) : null,
     width: cached.width,
     height: cached.height,
     tags: cached.tags,
