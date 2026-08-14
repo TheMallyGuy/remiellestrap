@@ -25,9 +25,15 @@
     "build:mac": "npm run build && electron-builder --mac",
     "build:linux": "npm run build && electron-builder --linux"
   },
+  "trustedDependencies": [
+    "electron",
+    "electron-builder",
+    "esbuild"
+  ],
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
+    "electron-vite": "^5.0.0",
     "yauzl": "^3.4.0"
   },
   "devDependencies": {
@@ -38,9 +44,8 @@
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^22.19.1",
     "@types/yauzl": "^3.4.0",
-    "electron": "^39.2.6",
+    "electron": "^43.4.0",
     "electron-builder": "^26.0.12",
-    "electron-vite": "^5.0.0",
     "eslint": "^9.39.1",
     "eslint-plugin-svelte": "^3.13.1",
     "prettier": "^3.7.4",
