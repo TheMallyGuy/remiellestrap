@@ -1,4 +1,5 @@
 import { createWriteStream } from 'fs'
+import { rename, rm } from 'fs/promises'
 import { Readable } from 'stream'
 import { pipeline } from 'stream/promises'
 import { dirname } from 'path'
@@ -18,32 +19,14 @@ export interface RequestOptions {
 
 const DEFAULT_TIMEOUT = 20_000
 
-function mergeSignals(signals: (AbortSignal | undefined)[]): {
-  signal: AbortSignal
-  cleanup: () => void
-} {
-  const controller = new AbortController()
-  const active = signals.filter((s): s is AbortSignal => Boolean(s))
-
-  const onAbort = (event: Event): void => {
-    const target = event.target as AbortSignal
-    controller.abort(target.reason)
-  }
-
-  for (const signal of active) {
-    if (signal.aborted) {
-      controller.abort(signal.reason)
-      break
-    }
-    signal.addEventListener('abort', onAbort, { once: true })
-  }
-
-  return {
-    signal: controller.signal,
-    cleanup: () => {
-      for (const signal of active) signal.removeEventListener('abort', onAbort)
-    }
-  }
+/**
+ * Builds one signal without manually detaching the caller's signal too early.
+ * A fetch resolves as soon as the response headers arrive, but the signal must
+ * stay active until text()/arrayBuffer()/the download stream has also finished.
+ */
+function requestSignal(timeoutMs: number, signal?: AbortSignal): AbortSignal {
+  const timeout = AbortSignal.timeout(timeoutMs)
+  return signal ? AbortSignal.any([timeout, signal]) : timeout
 }
 
 async function request(url: string, options: RequestOptions = {}): Promise<Response> {
@@ -51,12 +34,9 @@ async function request(url: string, options: RequestOptions = {}): Promise<Respo
   let lastError: unknown = null
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
-    const timeoutSignal = AbortSignal.timeout(timeoutMs)
-    const { signal, cleanup } = mergeSignals([timeoutSignal, options.signal])
-
     try {
       const response = await fetch(url, {
-        signal,
+        signal: requestSignal(timeoutMs, options.signal),
         redirect: 'follow',
         headers: { 'User-Agent': USER_AGENT, ...options.headers }
       })
@@ -83,8 +63,6 @@ async function request(url: string, options: RequestOptions = {}): Promise<Respo
         logger.warn(`${url} failed (attempt ${attempt + 1}/${retries + 1}): ${String(error)}`)
         await new Promise((resolve) => setTimeout(resolve, backoff))
       }
-    } finally {
-      cleanup()
     }
   }
 
@@ -131,29 +109,67 @@ export interface DownloadProgress {
   total: number | null
 }
 
-/** Streams a URL to disk, reporting progress. Used for Roblox packages. */
+export interface DownloadOptions extends RequestOptions {
+  onProgress?: (progress: DownloadProgress) => void
+  /** Exact byte count advertised by a trusted package manifest. */
+  expectedBytes?: number
+}
+
+/**
+ * Streams a URL to a sibling .part file and only publishes it after the whole
+ * body has arrived. Interrupted responses can therefore never masquerade as a
+ * reusable cached package on the next bootstrapper run.
+ */
 export async function downloadToFile(
   url: string,
   destination: string,
-  options: RequestOptions & { onProgress?: (progress: DownloadProgress) => void } = {}
+  options: DownloadOptions = {}
 ): Promise<number> {
-  const response = await request(url, { ...options, timeoutMs: options.timeoutMs ?? 120_000 })
+  const response = await request(url, { ...options, timeoutMs: options.timeoutMs ?? 300_000 })
   if (!response.body) throw new Error(`Empty response body for ${url}`)
 
   await ensureDir(dirname(destination))
 
   const lengthHeader = response.headers.get('content-length')
-  const total = lengthHeader ? Number.parseInt(lengthHeader, 10) : null
+  const parsedLength = lengthHeader ? Number.parseInt(lengthHeader, 10) : Number.NaN
+  const responseBytes = Number.isFinite(parsedLength) ? parsedLength : null
+  const total = options.expectedBytes ?? responseBytes
+  const temporary = `${destination}.part`
   let received = 0
 
-  const nodeStream = Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0])
-  nodeStream.on('data', (chunk: Buffer) => {
-    received += chunk.length
-    options.onProgress?.({ received, total: Number.isFinite(total) ? total : null })
-  })
+  await rm(temporary, { force: true }).catch(() => undefined)
 
-  await pipeline(nodeStream, createWriteStream(destination))
-  return received
+  try {
+    const nodeStream = Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0])
+    nodeStream.on('data', (chunk: Buffer) => {
+      received += chunk.length
+      options.onProgress?.({ received, total })
+    })
+
+    await pipeline(nodeStream, createWriteStream(temporary, { flags: 'wx' }))
+
+    if (responseBytes !== null && received !== responseBytes) {
+      throw new Error(
+        `Incomplete response from ${url}: expected ${responseBytes} bytes, got ${received}`
+      )
+    }
+
+    if (options.expectedBytes !== undefined && received !== options.expectedBytes) {
+      throw new Error(
+        `Incomplete package from ${url}: expected ${options.expectedBytes} bytes, got ${received}`
+      )
+    }
+
+    // The caller removes an invalid old destination before downloading. rm is
+    // repeated here so rename remains portable when recovering from an older
+    // RemielleStrap build that may have left a file behind.
+    await rm(destination, { force: true })
+    await rename(temporary, destination)
+    return received
+  } catch (error) {
+    await rm(temporary, { force: true }).catch(() => undefined)
+    throw error
+  }
 }
 
 /** Returns true when the URL responds to a lightweight request. */

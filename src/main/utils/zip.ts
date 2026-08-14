@@ -1,5 +1,5 @@
-import { promises as fs, createWriteStream } from 'fs'
-import { dirname, join, normalize } from 'path'
+import { createWriteStream } from 'fs'
+import { basename, dirname, join, normalize } from 'path'
 import { pipeline } from 'stream/promises'
 import yauzl from 'yauzl'
 import { ensureDir, isInside } from './fs'
@@ -17,6 +17,16 @@ export interface ExtractOptions {
   signal?: AbortSignal
 }
 
+export class InvalidZipError extends Error {
+  constructor(
+    file: string,
+    public readonly reason?: string
+  ) {
+    super(`The archive ${basename(file)} is incomplete or is not a valid zip file`)
+    this.name = 'InvalidZipError'
+  }
+}
+
 function openZip(file: string): Promise<yauzl.ZipFile> {
   return new Promise((resolve, reject) => {
     // decodeStrings:false stops yauzl from validating entry names and emitting
@@ -26,8 +36,11 @@ function openZip(file: string): Promise<yauzl.ZipFile> {
       file,
       { lazyEntries: true, autoClose: true, decodeStrings: false },
       (err, zipfile) => {
-        if (err || !zipfile) reject(err ?? new Error(`Unable to open archive: ${file}`))
-        else resolve(zipfile)
+        if (err || !zipfile) {
+          reject(new InvalidZipError(file, err?.message))
+        } else {
+          resolve(zipfile)
+        }
       }
     )
   })
@@ -69,6 +82,7 @@ export async function extractZip(
     const fail = (error: Error): void => {
       if (settled) return
       settled = true
+      options.signal?.removeEventListener('abort', abortHandler)
       try {
         zipfile.close()
       } catch {
@@ -157,17 +171,17 @@ export async function listZipEntries(zipPath: string): Promise<string[]> {
   })
 }
 
-/** True when the file exists and starts with the PK zip signature. */
+/**
+ * True only when yauzl can locate and parse the archive's central directory.
+ * Checking for a leading `PK` marker is not enough: truncated downloads retain
+ * that marker and were the source of the misleading end-of-directory error.
+ */
 export async function isZipFile(file: string): Promise<boolean> {
-  let handle: import('fs').promises.FileHandle | null = null
   try {
-    handle = await fs.open(file, 'r')
-    const buffer = Buffer.alloc(2)
-    const { bytesRead } = await handle.read(buffer, 0, 2, 0)
-    return bytesRead === 2 && buffer[0] === 0x50 && buffer[1] === 0x4b
+    const zipfile = await openZip(file)
+    zipfile.close()
+    return true
   } catch {
     return false
-  } finally {
-    await handle?.close().catch(() => undefined)
   }
 }

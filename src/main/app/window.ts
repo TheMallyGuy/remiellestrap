@@ -18,14 +18,21 @@ const MIN_WIDTH = 940
 const MIN_HEIGHT = 640
 const DEFAULT_WIDTH = 1120
 const DEFAULT_HEIGHT = 740
+const BOOTSTRAPPER_WIDTH = 560
+const BOOTSTRAPPER_HEIGHT = 420
 
 let mainWindow: BrowserWindow | null = null
+let bootstrapperWindow: BrowserWindow | null = null
 let saveTimer: NodeJS.Timeout | null = null
 /** Set when the user really wants to exit, so close is not swallowed by tray. */
 let quitting = false
 
 export function getMainWindow(): BrowserWindow | null {
   return mainWindow && !mainWindow.isDestroyed() ? mainWindow : null
+}
+
+export function getBootstrapperWindow(): BrowserWindow | null {
+  return bootstrapperWindow && !bootstrapperWindow.isDestroyed() ? bootstrapperWindow : null
 }
 
 export function setQuitting(value: boolean): void {
@@ -197,6 +204,80 @@ export function createMainWindow(): BrowserWindow {
 
   logger.info('Main window created')
   return window
+}
+
+/**
+ * Opens the compact, dedicated install/launch window. Keeping bootstrapper
+ * progress out of the settings window makes website deep links feel like a
+ * real launcher and leaves the main UI usable while packages are downloaded.
+ */
+export function showBootstrapperWindow(): BrowserWindow {
+  const existing = getBootstrapperWindow()
+  if (existing) {
+    if (existing.isMinimized()) existing.restore()
+    if (!existing.isVisible()) existing.show()
+    existing.focus()
+    return existing
+  }
+
+  const window = new BrowserWindow({
+    width: BOOTSTRAPPER_WIDTH,
+    height: BOOTSTRAPPER_HEIGHT,
+    minWidth: BOOTSTRAPPER_WIDTH,
+    minHeight: BOOTSTRAPPER_HEIGHT,
+    maxWidth: BOOTSTRAPPER_WIDTH,
+    maxHeight: BOOTSTRAPPER_HEIGHT,
+    show: false,
+    frame: false,
+    resizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    backgroundColor: '#0a0a0b',
+    autoHideMenuBar: true,
+    title: 'Installing Roblox — RemielleStrap',
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      sandbox: false,
+      contextIsolation: true,
+      nodeIntegration: false,
+      webviewTag: false,
+      spellcheck: false
+    }
+  })
+
+  bootstrapperWindow = window
+
+  window.on('ready-to-show', () => {
+    if (!window.isDestroyed()) window.show()
+  })
+
+  window.on('closed', () => {
+    bootstrapperWindow = null
+  })
+
+  hardenWindow(window)
+
+  window.webContents.on('render-process-gone', (_event, details) => {
+    logger.error(`Bootstrapper renderer process gone: ${details.reason}`)
+  })
+
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    const url = new URL(process.env['ELECTRON_RENDERER_URL'])
+    url.searchParams.set('view', 'bootstrapper')
+    void window.loadURL(url.toString())
+  } else {
+    void window.loadFile(join(__dirname, '../renderer/index.html'), {
+      query: { view: 'bootstrapper' }
+    })
+  }
+
+  logger.info('Bootstrapper window created')
+  return window
+}
+
+export function closeBootstrapperWindow(): void {
+  const window = getBootstrapperWindow()
+  if (window) window.close()
 }
 
 /** Brings the window back from tray/minimised state and focuses it. */

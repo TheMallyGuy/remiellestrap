@@ -41,7 +41,7 @@
     },
     bootstrapper: {
       title: 'Bootstrapper',
-      description: 'Full-bleed artwork behind the install and launch overlay.'
+      description: 'Full-bleed artwork behind the install and launch window.'
     }
   }
 
@@ -60,6 +60,7 @@
   let drafts = $state<Record<string, string>>({})
   let stats = $state<CacheStats | null>(null)
   let clearing = $state(false)
+  let refreshing = $state(false)
 
   $effect(() => {
     // Seed drafts from settings once they arrive, without clobbering edits.
@@ -104,6 +105,28 @@
   function resetTags(slot: Slot): void {
     drafts[slot] = DEFAULT_BOORU_TAGS[slot]
     void commitTags(slot)
+  }
+
+  async function fetchNewArtwork(): Promise<void> {
+    if (refreshing) return
+    refreshing = true
+
+    try {
+      // Keep requests sequential so Safebooru is not hit with a burst of five
+      // searches and image downloads at once.
+      for (const slot of ART_SLOTS) await loadArt(slot, true)
+      await refreshStats()
+
+      const loaded = ART_SLOTS.filter((slot) => Boolean(artSlot(slot).asset)).length
+      pushToast({
+        kind: loaded > 0 ? 'success' : 'warning',
+        title: loaded > 0 ? 'Fetched new artwork from Safebooru' : 'No new artwork was found',
+        message:
+          loaded > 0 ? `Updated ${loaded} of ${ART_SLOTS.length} appearance slots.` : undefined
+      })
+    } finally {
+      refreshing = false
+    }
   }
 
   async function clearCache(): Promise<void> {
@@ -198,7 +221,7 @@
 
   <SettingRow
     title="Artwork behind the bootstrapper"
-    description="Show Remielle artwork on the install and launch overlay."
+    description="Show Remielle artwork in the install and launch window."
   >
     <Switch
       checked={settings.value.showBootstrapperArt}
@@ -216,7 +239,26 @@
     {/if}
   </span>
 
-  <button type="button" class="btn-ghost" onclick={() => void clearCache()} disabled={clearing}>
+  <button
+    type="button"
+    class="btn-secondary"
+    onclick={() => void fetchNewArtwork()}
+    disabled={refreshing || clearing}
+  >
+    <Icon
+      name={refreshing ? 'spinner' : 'refresh'}
+      size={12}
+      class={refreshing ? 'animate-spin' : ''}
+    />
+    Fetch new images
+  </button>
+
+  <button
+    type="button"
+    class="btn-ghost"
+    onclick={() => void clearCache()}
+    disabled={clearing || refreshing}
+  >
     <Icon name={clearing ? 'spinner' : 'trash'} size={12} class={clearing ? 'animate-spin' : ''} />
     Clear cache
   </button>

@@ -42,6 +42,11 @@ export interface DeploymentTarget {
 
 let cachedBaseUrl: string | null = null
 
+/** Selected CDN first, followed by every official Roblox mirror once. */
+function deploymentBaseUrls(preferred?: string): string[] {
+  return [...new Set([preferred, ...BASE_URLS].filter((base): base is string => Boolean(base)))]
+}
+
 /** Finds the fastest reachable CDN base URL, caching the result. */
 export async function resolveBaseUrl(force = false): Promise<string> {
   if (cachedBaseUrl && !force) return cachedBaseUrl
@@ -176,16 +181,42 @@ export async function getPackageManifest(
   target: DeploymentTarget,
   signal?: AbortSignal
 ): Promise<PackageEntry[]> {
-  const url = `${channelPath(target.baseUrl, target.channel)}/${target.versionGuid}-rbxPkgManifest.txt`
-  logger.info(`GET ${url}`)
-  const content = await getText(url, { signal, timeoutMs: 30_000 })
-  const packages = parsePackageManifest(content)
-  logger.info(`Manifest lists ${packages.length} package(s)`)
-  return packages
+  let lastError: unknown = null
+
+  // A mirror can answer /version while a newly deployed GUID is still
+  // propagating. Resolve the manifest against the mirror set and keep the
+  // successful base for the package downloads that follow.
+  for (const baseUrl of deploymentBaseUrls(target.baseUrl)) {
+    const url = `${channelPath(baseUrl, target.channel)}/${target.versionGuid}-rbxPkgManifest.txt`
+    try {
+      logger.info(`GET ${url}`)
+      const content = await getText(url, { signal, timeoutMs: 30_000, retries: 1 })
+      const packages = parsePackageManifest(content)
+      target.baseUrl = baseUrl
+      cachedBaseUrl = baseUrl
+      logger.info(`Manifest lists ${packages.length} package(s) on ${baseUrl}`)
+      return packages
+    } catch (error) {
+      if (signal?.aborted) throw error
+      lastError = error
+      logger.warn(`Package manifest unavailable on ${baseUrl}: ${String(error)}`)
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(`Unable to download the package manifest for ${target.versionGuid}`)
 }
 
 export function packageUrl(target: DeploymentTarget, packageName: string): string {
   return `${channelPath(target.baseUrl, target.channel)}/${target.versionGuid}-${packageName}`
+}
+
+/** Official mirror candidates for a package, with the selected CDN first. */
+export function packageUrls(target: DeploymentTarget, packageName: string): string[] {
+  return deploymentBaseUrls(target.baseUrl).map((baseUrl) =>
+    packageUrl({ ...target, baseUrl }, packageName)
+  )
 }
 
 /**

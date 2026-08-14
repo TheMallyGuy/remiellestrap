@@ -20,6 +20,7 @@ import { clearArtCacheState, getState, loadState, setCachedArt } from './stateSt
 import { emit } from './events'
 
 const logger = createLogger('Booru')
+const inFlightArt = new Map<string, Promise<ArtAsset | null>>()
 
 /**
  * Safebooru runtime art pipeline.
@@ -30,8 +31,13 @@ const logger = createLogger('Booru')
  * view renders local files instead of hotlinking the remote CDN.
  */
 
-const API_BASE = 'https://safebooru.org/index.php'
-const POST_PAGE = 'https://safebooru.org/index.php?page=post&s=view&id='
+const SAFEBOORU_ORIGIN = 'https://safebooru.org'
+const API_BASE = `${SAFEBOORU_ORIGIN}/index.php`
+const POST_PAGE = `${SAFEBOORU_ORIGIN}/index.php?page=post&s=view&id=`
+const SAFEBOORU_HEADERS = {
+  Referer: `${SAFEBOORU_ORIGIN}/`,
+  'Accept-Language': 'en-US,en;q=0.8'
+}
 
 /** Hard cap for the on-disk art cache. */
 const MAX_CACHE_BYTES = 256 * 1024 * 1024
@@ -41,7 +47,7 @@ const ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif'])
 /** Safebooru's raw DAPI post shape (json=1). */
 interface RawPost {
   id?: number
-  directory?: string
+  directory?: string | number
   image?: string
   hash?: string
   width?: number
@@ -59,6 +65,18 @@ interface RawPost {
   change?: number
 }
 
+/** Accept only image URLs served by the real Safebooru origin. */
+function safebooruUrl(value: string | undefined): string | null {
+  if (!value) return null
+  try {
+    const url = new URL(value, SAFEBOORU_ORIGIN)
+    if (url.protocol !== 'https:' || url.hostname.toLowerCase() !== 'safebooru.org') return null
+    return url.toString()
+  } catch {
+    return null
+  }
+}
+
 /**
  * Safebooru's json=1 responses omit absolute URLs in some deployments, so we
  * reconstruct them from `directory` + `image` the same way the site does.
@@ -66,24 +84,26 @@ interface RawPost {
 function buildUrls(
   raw: RawPost
 ): { fileUrl: string; previewUrl: string; sampleUrl: string | null } | null {
-  if (raw.file_url && raw.preview_url) {
+  const suppliedFile = safebooruUrl(raw.file_url)
+  const suppliedPreview = safebooruUrl(raw.preview_url)
+  const hasSample = raw.sample === true || raw.sample === 1
+
+  if (suppliedFile && suppliedPreview) {
     return {
-      fileUrl: raw.file_url,
-      previewUrl: raw.preview_url,
-      sampleUrl: raw.sample_url ?? null
+      fileUrl: suppliedFile,
+      previewUrl: suppliedPreview,
+      sampleUrl: hasSample ? safebooruUrl(raw.sample_url) : null
     }
   }
 
-  if (!raw.directory || !raw.image) return null
+  const directory = String(raw.directory ?? '')
+  const image = raw.image ?? ''
+  if (!/^\d+$/.test(directory) || !/^[a-zA-Z0-9._-]+$/.test(image)) return null
 
-  const image = raw.image
   const base = image.replace(/\.[^.]+$/, '')
-  const fileUrl = `https://safebooru.org/images/${raw.directory}/${image}`
-  const previewUrl = `https://safebooru.org/thumbnails/${raw.directory}/thumbnail_${base}.jpg`
-  const hasSample = raw.sample === true || raw.sample === 1
-  const sampleUrl = hasSample
-    ? `https://safebooru.org/samples/${raw.directory}/sample_${base}.jpg`
-    : null
+  const fileUrl = `${SAFEBOORU_ORIGIN}/images/${directory}/${image}`
+  const previewUrl = `${SAFEBOORU_ORIGIN}/thumbnails/${directory}/thumbnail_${base}.jpg`
+  const sampleUrl = hasSample ? `${SAFEBOORU_ORIGIN}/samples/${directory}/sample_${base}.jpg` : null
 
   return { fileUrl, previewUrl, sampleUrl }
 }
@@ -134,7 +154,8 @@ export async function searchPosts(
   try {
     const payload = await getJson<RawPost[] | { post?: RawPost[] } | null>(url, {
       signal,
-      retries: 2
+      retries: 2,
+      headers: SAFEBOORU_HEADERS
     })
 
     // Safebooru returns a bare array, an empty string, or occasionally an
@@ -194,9 +215,26 @@ async function searchWithFallback(
 }
 
 function cacheFileName(postId: number, url: string): string {
-  const ext = extname(url).toLowerCase()
+  const ext = extname(new URL(url).pathname).toLowerCase()
   const safeExt = ALLOWED_EXTENSIONS.has(ext) ? ext : '.jpg'
   return `${postId}-${shortId(url, 8)}${safeExt}`
+}
+
+function hasImageSignature(buffer: Buffer): boolean {
+  if (buffer.length < 12) return false
+
+  const png = buffer
+    .subarray(0, 8)
+    .equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+  const jpeg = buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff
+  const gif =
+    buffer.subarray(0, 6).toString('ascii') === 'GIF87a' ||
+    buffer.subarray(0, 6).toString('ascii') === 'GIF89a'
+  const webp =
+    buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
+    buffer.subarray(8, 12).toString('ascii') === 'WEBP'
+
+  return png || jpeg || gif || webp
 }
 
 /** Downloads an image into the art cache and returns the local file name. */
@@ -208,13 +246,37 @@ async function cacheImage(
   const fileName = cacheFileName(postId, url)
   const target = join(paths.artCache, fileName)
 
-  if (await pathExists(target)) return fileName
+  if (await pathExists(target)) {
+    try {
+      const handle = await fs.open(target, 'r')
+      try {
+        const header = Buffer.alloc(12)
+        const { bytesRead } = await handle.read(header, 0, header.length, 0)
+        if (hasImageSignature(header.subarray(0, bytesRead))) return fileName
+      } finally {
+        await handle.close()
+      }
+    } catch {
+      /* remove and replace an unreadable cache entry below */
+    }
+    await fs.rm(target, { force: true }).catch(() => undefined)
+  }
 
   try {
     await ensureDir(paths.artCache)
-    const buffer = await getBuffer(url, { signal, timeoutMs: 45_000 })
+    const buffer = await getBuffer(url, {
+      signal,
+      timeoutMs: 45_000,
+      headers: {
+        ...SAFEBOORU_HEADERS,
+        Accept: 'image/webp,image/png,image/jpeg,image/gif,image/*;q=0.8'
+      }
+    })
 
     if (buffer.byteLength === 0) throw new Error('Empty image response')
+    if (!hasImageSignature(buffer)) {
+      throw new Error('Safebooru returned something other than an image')
+    }
     if (buffer.byteLength > MAX_IMAGE_BYTES) {
       logger.warn(`Skipping ${url}: ${buffer.byteLength} bytes exceeds cache limit`)
       return null
@@ -275,6 +337,31 @@ function choosePost(posts: BooruPost[], slot: string, excludeId?: number | null)
  *   3. null, letting the UI fall back to its typographic treatment
  */
 export async function getArtForSlot(
+  request: ArtRequest,
+  signal?: AbortSignal
+): Promise<ArtAsset | null> {
+  // Startup prefetch and the first renderer paint often ask for the same slot
+  // together. Coalesce those reads so they result in one real DAPI request.
+  // Explicit shuffles always bypass this map because the caller asked for a
+  // newly selected post.
+  const key = `${request.slot}\u0000${request.tags?.trim() ?? ''}`
+  if (!request.shuffle) {
+    const active = inFlightArt.get(key)
+    if (active) return active
+  }
+
+  const task = resolveArtForSlot(request, signal)
+  if (request.shuffle) return task
+
+  inFlightArt.set(key, task)
+  try {
+    return await task
+  } finally {
+    if (inFlightArt.get(key) === task) inFlightArt.delete(key)
+  }
+}
+
+async function resolveArtForSlot(
   request: ArtRequest,
   signal?: AbortSignal
 ): Promise<ArtAsset | null> {
