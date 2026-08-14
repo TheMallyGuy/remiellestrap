@@ -1,0 +1,60 @@
+appId: com.themallyguy.remiellestrap
+productName: RemielleStrap
+copyright: Copyright © 2026 TheMallyGuy
+directories:
+  buildResources: build
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!svelte.config.mjs'
+  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md,ASSETS.md}'
+  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+asarUnpack:
+  - resources/**
+# Claiming these schemes is what lets the Roblox website hand play requests to
+# RemielleStrap instead of the stock player.
+protocols:
+  - name: Roblox
+    schemes:
+      - roblox
+      - roblox-player
+    role: Viewer
+win:
+  executableName: RemielleStrap
+  target:
+    - nsis
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  artifactName: ${name}-${version}-setup.${ext}
+  shortcutName: ${productName}
+  uninstallDisplayName: ${productName}
+  createDesktopShortcut: always
+  deleteAppDataOnUninstall: false
+mac:
+  category: public.app-category.utilities
+  entitlementsInherit: build/entitlements.mac.plist
+  extendInfo:
+    - NSDocumentsFolderUsageDescription: RemielleStrap requests access to the user's Documents folder.
+    - NSDownloadsFolderUsageDescription: RemielleStrap requests access to the user's Downloads folder.
+  notarize: false
+dmg:
+  artifactName: ${name}-${version}.${ext}
+linux:
+  target:
+    - AppImage
+    - deb
+  maintainer: TheMallyGuy
+  category: Utility
+  synopsis: A Remielle-themed Roblox bootstrapper
+  description: A Roblox bootstrapper with mod management, FastFlag profiles, activity tracking and Discord rich presence.
+appImage:
+  artifactName: ${name}-${version}.${ext}
+npmRebuild: false
+publish:
+  provider: github
+  owner: TheMallyGuy
+  repo: remiellestrap

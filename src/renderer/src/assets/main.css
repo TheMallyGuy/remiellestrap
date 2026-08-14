@@ -1,0 +1,574 @@
+@import 'tailwindcss';
+
+/*
+ * RemielleStrap design system
+ * ---------------------------
+ * Black, ivory and soft gold, with a faint prism iridescence that only ever
+ * appears as an accent — never as a background wash. The mood is cathedral
+ * light: deep shadow, thin lines, one bright thing at a time.
+ */
+
+@theme {
+  /* Ink — the near-black substrate, warmed very slightly so it never reads blue. */
+  --color-ink-950: #070708;
+  --color-ink-900: #0a0a0b;
+  --color-ink-850: #0e0e10;
+  --color-ink-800: #131316;
+  --color-ink-750: #17171b;
+  --color-ink-700: #1d1d22;
+  --color-ink-600: #26262c;
+  --color-ink-500: #33333b;
+  --color-ink-400: #4a4a55;
+
+  /* Ivory — text and light surfaces, a warm off-white rather than pure white. */
+  --color-ivory-50: #fdfcf9;
+  --color-ivory-100: #f7f5ef;
+  --color-ivory-200: #ebe7dc;
+  --color-ivory-300: #d8d3c4;
+  --color-ivory-400: #b4ae9d;
+  --color-ivory-500: #8a8577;
+  --color-ivory-600: #63604f;
+
+  /* Gold — the single accent. Soft and brushed, never a saturated yellow. */
+  --color-gold-200: #f2e3bd;
+  --color-gold-300: #e6d09a;
+  --color-gold-400: #d4b671;
+  --color-gold-500: #c19d4e;
+  --color-gold-600: #9d7d38;
+  --color-gold-700: #6f5726;
+
+  /* Prism — Remielle's Lumiflux refraction. Used at low opacity, in slivers. */
+  --color-prism-rose: #e9a8c9;
+  --color-prism-violet: #a89ae0;
+  --color-prism-cyan: #8fd3e0;
+  --color-prism-mint: #a9dfc4;
+
+  /* Status */
+  --color-positive: #7bbf8f;
+  --color-caution: #d9b169;
+  --color-negative: #d98080;
+
+  --font-sans:
+    'Inter var', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Cormorant Garamond', 'Iowan Old Style', Georgia, 'Times New Roman', serif;
+  --font-mono:
+    ui-monospace, 'SF Mono', 'JetBrains Mono', 'Cascadia Mono', Consolas, monospace;
+
+  /* A tight, deliberate type scale. */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+
+  --radius-card: 0.625rem;
+  --radius-control: 0.5rem;
+
+  --shadow-lift: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -12px rgb(0 0 0 / 0.7);
+  --shadow-float: 0 2px 4px rgb(0 0 0 / 0.5), 0 24px 60px -20px rgb(0 0 0 / 0.85);
+
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --animate-fade-up: fade-up 0.36s var(--ease-out-soft) both;
+  --animate-fade-in: fade-in 0.28s var(--ease-out-soft) both;
+  --animate-shimmer: shimmer 1.8s linear infinite;
+  --animate-drift: drift 22s ease-in-out infinite;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: -180% 0;
+  }
+  to {
+    background-position: 180% 0;
+  }
+}
+
+@keyframes drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1.04);
+  }
+  50% {
+    transform: translate3d(0, -1.5%, 0) scale(1.08);
+  }
+}
+
+@keyframes spin-slow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * Base
+ * -------------------------------------------------------------------------- */
+
+@layer base {
+  * {
+    /* Thin borders everywhere by default. */
+    border-color: --alpha(var(--color-ivory-200) / 8%);
+  }
+
+  html,
+  body,
+  #app {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    overflow: hidden;
+    background-color: var(--color-ink-900);
+    color: var(--color-ivory-200);
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'ss01';
+    user-select: none;
+    cursor: default;
+  }
+
+  /* Text the user may legitimately want to copy opts back in. */
+  input,
+  textarea,
+  [data-selectable] {
+    user-select: text;
+    cursor: auto;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    margin: 0;
+    font-weight: 500;
+    letter-spacing: -0.011em;
+    color: var(--color-ivory-100);
+  }
+
+  p {
+    margin: 0;
+  }
+
+  button {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+
+  a {
+    color: var(--color-gold-300);
+    text-decoration: none;
+  }
+
+  a:hover {
+    color: var(--color-gold-200);
+  }
+
+  :focus-visible {
+    outline: 1px solid --alpha(var(--color-gold-400) / 70%);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  ::selection {
+    background: --alpha(var(--color-gold-400) / 28%);
+    color: var(--color-ivory-50);
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: --alpha(var(--color-ivory-300) / 10%);
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: --alpha(var(--color-ivory-300) / 20%);
+    background-clip: content-box;
+  }
+
+  /* Native form controls, tinted to the palette. */
+  input[type='range'] {
+    accent-color: var(--color-gold-400);
+  }
+
+  input[type='checkbox'],
+  input[type='radio'] {
+    accent-color: var(--color-gold-500);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+
+  /* The in-app equivalent, driven by the `reduceMotion` setting. App.svelte
+     toggles this class on <html> so components never inspect settings just to
+     decide whether to animate. */
+  .reduce-motion *,
+  .reduce-motion *::before,
+  .reduce-motion *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+
+  /*
+   * Light theme.
+   *
+   * Rather than a second palette, the ink and ivory ramps are swapped in
+   * place: every component keeps referring to `ink-*` for substrate and
+   * `ivory-*` for content, so nothing else in the app has to know which mode
+   * it is in. Gold is warmed very slightly so it stays legible on a pale
+   * surface, and the prism accents are deepened for the same reason.
+   */
+  .theme-light {
+    --color-ink-950: #f6f4ee;
+    --color-ink-900: #efece4;
+    --color-ink-850: #e9e5db;
+    --color-ink-800: #e3dfd3;
+    --color-ink-750: #dcd7c9;
+    --color-ink-700: #d3cdbd;
+    --color-ink-600: #c3bca9;
+    --color-ink-500: #a9a291;
+    --color-ink-400: #8c8676;
+
+    --color-ivory-50: #101013;
+    --color-ivory-100: #1a1a1e;
+    --color-ivory-200: #2a2a30;
+    --color-ivory-300: #43434c;
+    --color-ivory-400: #5f5f6a;
+    --color-ivory-500: #7c7c86;
+    --color-ivory-600: #9a9aa2;
+
+    --color-gold-200: #6f5726;
+    --color-gold-300: #8a6d31;
+    --color-gold-400: #a8863e;
+    --color-gold-500: #b8944a;
+    --color-gold-600: #cdae6e;
+    --color-gold-700: #e3cd9d;
+
+    --color-prism-rose: #c76fa0;
+    --color-prism-violet: #7a68c4;
+    --color-prism-cyan: #4f9fb2;
+    --color-prism-mint: #61ab86;
+
+    --color-positive: #3f8b57;
+    --color-caution: #9a7526;
+    --color-negative: #b04a4a;
+  }
+
+  .theme-light body {
+    background-color: var(--color-ink-900);
+    color: var(--color-ivory-200);
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * Components
+ * -------------------------------------------------------------------------- */
+
+@layer components {
+  /* Draggable region for the frameless window. Interactive children must
+     carry `.no-drag`, otherwise clicks are swallowed by the drag handler. */
+  .drag {
+    -webkit-app-region: drag;
+  }
+
+  .no-drag {
+    -webkit-app-region: no-drag;
+  }
+
+  /* A surface: the standard raised panel. */
+  .surface {
+    background-color: --alpha(var(--color-ink-800) / 70%);
+    border: 1px solid --alpha(var(--color-ivory-200) / 8%);
+    border-radius: var(--radius-card);
+  }
+
+  .surface-inset {
+    background-color: --alpha(var(--color-ink-950) / 45%);
+    border: 1px solid --alpha(var(--color-ivory-200) / 6%);
+    border-radius: var(--radius-control);
+  }
+
+  /* A hairline that fades at both ends, like light falling off a stone edge. */
+  .hairline {
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      --alpha(var(--color-ivory-200) / 12%) 18%,
+      --alpha(var(--color-ivory-200) / 12%) 82%,
+      transparent
+    );
+  }
+
+  /* The prism sliver: a thin refracted edge, used sparingly for emphasis. */
+  .prism-edge {
+    position: relative;
+  }
+
+  .prism-edge::after {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      --alpha(var(--color-prism-rose) / 45%) 20%,
+      --alpha(var(--color-prism-violet) / 45%) 40%,
+      --alpha(var(--color-prism-cyan) / 45%) 60%,
+      --alpha(var(--color-prism-mint) / 40%) 78%,
+      transparent
+    );
+    pointer-events: none;
+  }
+
+  /* The single high-emphasis call to action per screen. */
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.25rem;
+    border-radius: var(--radius-control);
+    background: linear-gradient(180deg, var(--color-gold-300), var(--color-gold-500));
+    color: var(--color-ink-950);
+    font-weight: 600;
+    font-size: 0.8125rem;
+    letter-spacing: 0.01em;
+    box-shadow:
+      inset 0 1px 0 --alpha(var(--color-ivory-50) / 45%),
+      0 1px 2px rgb(0 0 0 / 0.5),
+      0 10px 30px -14px --alpha(var(--color-gold-400) / 80%);
+    transition:
+      filter 0.16s var(--ease-out-soft),
+      transform 0.16s var(--ease-out-soft),
+      box-shadow 0.16s var(--ease-out-soft);
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    filter: brightness(1.06);
+    box-shadow:
+      inset 0 1px 0 --alpha(var(--color-ivory-50) / 55%),
+      0 1px 2px rgb(0 0 0 / 0.5),
+      0 14px 36px -14px --alpha(var(--color-gold-400) / 95%);
+  }
+
+  .btn-primary:active:not(:disabled) {
+    transform: translateY(1px);
+    filter: brightness(0.97);
+  }
+
+  .btn-primary:disabled {
+    background: --alpha(var(--color-ivory-500) / 22%);
+    color: --alpha(var(--color-ivory-300) / 45%);
+    box-shadow: none;
+  }
+
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.9375rem;
+    border-radius: var(--radius-control);
+    border: 1px solid --alpha(var(--color-ivory-200) / 14%);
+    background-color: --alpha(var(--color-ivory-100) / 4%);
+    color: var(--color-ivory-200);
+    font-weight: 500;
+    font-size: 0.8125rem;
+    transition:
+      background-color 0.16s var(--ease-out-soft),
+      border-color 0.16s var(--ease-out-soft),
+      color 0.16s var(--ease-out-soft);
+  }
+
+  .btn-secondary:hover:not(:disabled) {
+    background-color: --alpha(var(--color-ivory-100) / 8%);
+    border-color: --alpha(var(--color-ivory-200) / 22%);
+    color: var(--color-ivory-50);
+  }
+
+  .btn-secondary:disabled {
+    opacity: 0.45;
+  }
+
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.4375rem 0.75rem;
+    border-radius: var(--radius-control);
+    color: var(--color-ivory-400);
+    font-size: 0.8125rem;
+    transition:
+      background-color 0.16s var(--ease-out-soft),
+      color 0.16s var(--ease-out-soft);
+  }
+
+  .btn-ghost:hover:not(:disabled) {
+    background-color: --alpha(var(--color-ivory-100) / 6%);
+    color: var(--color-ivory-100);
+  }
+
+  .btn-ghost:disabled {
+    opacity: 0.4;
+  }
+
+  .btn-danger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.9375rem;
+    border-radius: var(--radius-control);
+    border: 1px solid --alpha(var(--color-negative) / 32%);
+    background-color: --alpha(var(--color-negative) / 8%);
+    color: #eaa9a9;
+    font-weight: 500;
+    font-size: 0.8125rem;
+    transition:
+      background-color 0.16s var(--ease-out-soft),
+      border-color 0.16s var(--ease-out-soft);
+  }
+
+  .btn-danger:hover:not(:disabled) {
+    background-color: --alpha(var(--color-negative) / 16%);
+    border-color: --alpha(var(--color-negative) / 50%);
+  }
+
+  .btn-danger:disabled {
+    opacity: 0.45;
+  }
+
+  /* Text inputs */
+  .field {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radius-control);
+    border: 1px solid --alpha(var(--color-ivory-200) / 10%);
+    background-color: --alpha(var(--color-ink-950) / 55%);
+    color: var(--color-ivory-100);
+    font-size: 0.8125rem;
+    transition:
+      border-color 0.16s var(--ease-out-soft),
+      background-color 0.16s var(--ease-out-soft);
+  }
+
+  .field::placeholder {
+    color: --alpha(var(--color-ivory-500) / 80%);
+  }
+
+  .field:hover {
+    border-color: --alpha(var(--color-ivory-200) / 16%);
+  }
+
+  .field:focus {
+    outline: none;
+    border-color: --alpha(var(--color-gold-400) / 55%);
+    background-color: --alpha(var(--color-ink-950) / 75%);
+  }
+
+  .field-mono {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+  }
+
+  /* Section labels — small, spaced, quiet. */
+  .eyebrow {
+    font-size: var(--text-2xs);
+    line-height: var(--text-2xs--line-height);
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--color-ivory-500);
+    font-weight: 500;
+  }
+
+  /* Attribution / metadata chips. */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.1875rem 0.5rem;
+    border-radius: 999px;
+    border: 1px solid --alpha(var(--color-ivory-200) / 12%);
+    background-color: --alpha(var(--color-ink-950) / 60%);
+    font-size: var(--text-2xs);
+    line-height: var(--text-2xs--line-height);
+    color: var(--color-ivory-400);
+    backdrop-filter: blur(8px);
+  }
+
+  /* Loading placeholder for art slots. */
+  .skeleton {
+    background-color: --alpha(var(--color-ivory-200) / 4%);
+    background-image: linear-gradient(
+      90deg,
+      transparent,
+      --alpha(var(--color-ivory-200) / 7%),
+      transparent
+    );
+    background-size: 180% 100%;
+    animation: var(--animate-shimmer);
+  }
+
+  /* Display heading used for page titles and the wordmark. */
+  .display {
+    font-family: var(--font-display);
+    font-weight: 300;
+    letter-spacing: 0.005em;
+    color: var(--color-ivory-50);
+  }
+}
+
+@utility text-balance-pretty {
+  text-wrap: pretty;
+}
