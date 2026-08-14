@@ -85,12 +85,12 @@
   </SettingRow>
 
   <SettingRow
-    title="Close the overlay automatically"
-    description="Dismiss the bootstrapper as soon as the client window appears."
+    title="Close the setup window automatically"
+    description="Dismiss the install and launch window as soon as Roblox starts."
   >
     <Switch
       checked={settings.value.autoCloseBootstrapper}
-      label="Close the overlay automatically"
+      label="Close the setup window automatically"
       onchange={(value) => void updateSettings({ autoCloseBootstrapper: value })}
     />
   </SettingRow>

@@ -13,10 +13,8 @@
     applyComplete,
     applyError,
     applyProgress,
-    bootstrapper,
     checkForUpdates,
     launch,
-    openOverlay,
     syncProgress
   } from './lib/stores/bootstrapper.svelte'
   import {
@@ -31,7 +29,6 @@
   import Sidebar from './lib/components/Sidebar.svelte'
   import TitleBar from './lib/components/TitleBar.svelte'
   import Toasts from './lib/components/Toasts.svelte'
-  import BootstrapperOverlay from './lib/dialogs/BootstrapperOverlay.svelte'
 
   import AboutPage from './lib/pages/AboutPage.svelte'
   import AppearancePage from './lib/pages/AppearancePage.svelte'
@@ -77,7 +74,6 @@
     const uri = await api.bootstrapper.getPendingUri()
 
     if (uri) {
-      openOverlay()
       await launch({ uri, force: true })
       return
     }
@@ -202,9 +198,5 @@
     </main>
   </div>
 </div>
-
-{#if bootstrapper.overlayOpen}
-  <BootstrapperOverlay />
-{/if}
 
 <Toasts />

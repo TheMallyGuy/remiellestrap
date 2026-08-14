@@ -30,7 +30,6 @@ import * as fastflags from '../services/fastflags'
 import * as mods from '../services/mods'
 import * as activity from '../services/activity'
 import * as bootstrapper from '../core/bootstrapper'
-import { emit } from '../services/events'
 import {
   ValidationError,
   optionalBoolean,
@@ -243,9 +242,7 @@ const handlers: HandlerMap = {
       tags: optionalString(raw.tags, 'tags', 512)
     }
 
-    const asset = await booru.getArtForSlot(payload)
-    emit('theme:artUpdated', { slot: payload.slot, asset })
-    return asset
+    return booru.getArtForSlot(payload)
   },
 
   'booru:clearCache': async () => booru.clearCache(),

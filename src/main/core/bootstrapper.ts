@@ -1,5 +1,5 @@
 import { spawn } from 'child_process'
-import { writeFile } from 'fs/promises'
+import { stat, writeFile } from 'fs/promises'
 import { join } from 'path'
 import type {
   BootstrapperProgress,
@@ -12,8 +12,9 @@ import { createLogger } from '../utils/logger'
 import { paths, stockRobloxRoot, versionDirectory } from '../utils/paths'
 import { ensureDir, formatBytes, pathExists, removeDir, removeFile } from '../utils/fs'
 import { md5File } from '../utils/hash'
-import { extractZip } from '../utils/zip'
+import { extractZip, isZipFile } from '../utils/zip'
 import { buildRobloxArguments, parseLaunchUri, type ParsedLaunchUri } from '../utils/uri'
+import { closeBootstrapperWindow, showBootstrapperWindow } from '../app/window'
 import { downloadToFile } from '../services/http'
 import { emit, toast } from '../services/events'
 import { getSettings } from '../services/settingsStore'
@@ -28,7 +29,7 @@ import {
   getLatestClientVersion,
   getPackageManifest,
   packageDirectoryMap,
-  packageUrl,
+  packageUrls,
   resolveBaseUrl,
   type BinaryType,
   type DeploymentTarget,
@@ -249,25 +250,16 @@ async function ensureInstalled(options: InstallOptions): Promise<string> {
     if (valid) {
       logger.info(`Using cached package ${entry.name}`)
     } else {
-      await removeFile(cached)
-      await downloadToFile(packageUrl(target, entry.name), cached, {
-        signal,
-        onProgress: ({ received }) => {
-          completedBytes = startedAt + received
-          report({
-            stage: 'downloading',
-            bytesDownloaded: completedBytes,
-            progress: totalBytes > 0 ? Math.min(completedBytes / totalBytes, 1) : null,
-            message: `Downloading Roblox ${latest.version}`,
-            detail: `${entry.name} · ${formatBytes(completedBytes)} of ${formatBytes(totalBytes)}`
-          })
-        }
+      await downloadPackage(target, entry, cached, signal, (received) => {
+        completedBytes = startedAt + received
+        report({
+          stage: 'downloading',
+          bytesDownloaded: completedBytes,
+          progress: totalBytes > 0 ? Math.min(completedBytes / totalBytes, 1) : null,
+          message: `Downloading Roblox ${latest.version}`,
+          detail: `${entry.name} · ${formatBytes(completedBytes)} of ${formatBytes(totalBytes)}`
+        })
       })
-
-      if (!(await verifyPackage(cached, entry))) {
-        await removeFile(cached)
-        throw new Error(`Checksum mismatch for ${entry.name}; the download was corrupted`)
-      }
     }
 
     completedBytes = startedAt + entry.packedSize
@@ -334,12 +326,86 @@ async function ensureInstalled(options: InstallOptions): Promise<string> {
 
 async function verifyPackage(file: string, entry: PackageEntry): Promise<boolean> {
   if (!(await pathExists(file))) return false
+
   try {
+    const fileInfo = await stat(file)
+    if (fileInfo.size !== entry.packedSize) {
+      logger.warn(
+        `${entry.name} has the wrong size (${fileInfo.size} bytes, expected ${entry.packedSize})`
+      )
+      return false
+    }
+
     const signature = await md5File(file)
-    return signature.toLowerCase() === entry.signature.toLowerCase()
-  } catch {
+    if (signature.toLowerCase() !== entry.signature.toLowerCase()) {
+      logger.warn(`${entry.name} failed its Roblox manifest checksum`)
+      return false
+    }
+
+    // The MD5 and byte count protect authenticity/completeness. Parsing the
+    // central directory here additionally catches old, truncated cache files
+    // before yauzl reaches extraction and reports its opaque EOCD error.
+    if (!(await isZipFile(file))) {
+      logger.warn(`${entry.name} has no readable zip central directory`)
+      return false
+    }
+
+    return true
+  } catch (error) {
+    logger.warn(`Could not verify ${entry.name}: ${String(error)}`)
     return false
   }
+}
+
+/**
+ * Downloads one package atomically and fails over across Roblox's official CDN
+ * mirrors. A bad body is removed before the next attempt, so extraction never
+ * sees a partial response or an HTML error page saved under a .zip name.
+ */
+async function downloadPackage(
+  target: DeploymentTarget,
+  entry: PackageEntry,
+  destination: string,
+  signal: AbortSignal,
+  onProgress: (received: number) => void
+): Promise<void> {
+  let lastError: unknown = null
+  const urls = packageUrls(target, entry.name)
+
+  for (const [index, url] of urls.entries()) {
+    throwIfCancelled(signal)
+    await removeFile(destination)
+    onProgress(0)
+
+    try {
+      logger.info(`Downloading ${entry.name} from ${new URL(url).host}`)
+      await downloadToFile(url, destination, {
+        signal,
+        retries: 0,
+        expectedBytes: entry.packedSize,
+        onProgress: ({ received }) => onProgress(received)
+      })
+
+      if (!(await verifyPackage(destination, entry))) {
+        throw new Error('the downloaded file failed its size, checksum, or zip integrity check')
+      }
+
+      return
+    } catch (error) {
+      if (signal.aborted) throw new CancelledError()
+      lastError = error
+      await removeFile(destination)
+      logger.warn(
+        `Package ${entry.name} failed on mirror ${index + 1}/${urls.length}: ${String(error)}`
+      )
+    }
+  }
+
+  const detail = lastError instanceof Error ? lastError.message : String(lastError)
+  throw new Error(
+    `Roblox package ${entry.name} could not be downloaded intact from any official CDN mirror. ` +
+      `The partial file was removed; check your connection and try again. Last error: ${detail}`
+  )
 }
 
 /** Removes version directories and cached packages that are no longer current. */
@@ -385,6 +451,7 @@ export interface InstallRunOptions {
  */
 export async function run(options: InstallRunOptions = {}): Promise<BootstrapperResult> {
   if (running) {
+    showBootstrapperWindow()
     return {
       ok: false,
       version: null,
@@ -395,6 +462,7 @@ export async function run(options: InstallRunOptions = {}): Promise<Bootstrapper
 
   running = true
   controller = new AbortController()
+  showBootstrapperWindow()
   const signal = controller.signal
 
   try {
@@ -461,6 +529,13 @@ export async function run(options: InstallRunOptions = {}): Promise<Bootstrapper
 
     report({ stage: 'running', message: 'Roblox is running', progress: 1, cancellable: false })
     emit('bootstrapper:complete', result)
+
+    if (settings.autoCloseBootstrapper) {
+      setTimeout(() => {
+        if (progress.stage === 'running') closeBootstrapperWindow()
+      }, 900)
+    }
+
     return result
   } catch (error) {
     if (error instanceof CancelledError || signal.aborted) {
@@ -478,6 +553,9 @@ export async function run(options: InstallRunOptions = {}): Promise<Bootstrapper
 
     const message = error instanceof Error ? error.message : String(error)
     logger.error(`Bootstrapper run failed: ${message}`)
+    // If the user hid the progress window while the download continued, bring
+    // it back for a failure so the actionable error is never lost.
+    showBootstrapperWindow()
     report({
       stage: 'error',
       message: 'Something went wrong',
@@ -526,12 +604,11 @@ async function launchClient(
     windowsHide: false
   })
 
-  child.on('error', (error) => {
-    logger.error(`Failed to spawn the Roblox client: ${error.message}`)
-    emit('bootstrapper:error', {
-      message: 'Roblox could not be started',
-      detail: error.message
-    })
+  // Do not announce a successful launch until Windows has actually created the
+  // process. spawn() reports missing/blocked executables asynchronously.
+  await new Promise<void>((resolve, reject) => {
+    child.once('spawn', resolve)
+    child.once('error', reject)
   })
 
   child.unref()
