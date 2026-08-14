@@ -33,8 +33,11 @@ const MAX_URI_LENGTH = 4096
  * characters (query separators, base64 launch data) so they must be permitted
  * here — arguments are passed to spawn() as an array and never via a shell.
  */
+// Whitespace is never legal in a genuine Roblox launch URI (Roblox percent-
+// encodes every parameter), and the client is spawned without a shell, so this
+// is belt-and-braces against a mangled or injected argument.
 // eslint-disable-next-line no-control-regex
-const FORBIDDEN_URI = /[\u0000-\u001f\u007f"`|;<>^\n\r]/
+const FORBIDDEN_URI = /[\u0000-\u001f\u007f\s"`|;<>^]/
 
 /**
  * Shell metacharacters refused in free-text launch arguments. Quotes are
