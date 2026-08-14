@@ -35,6 +35,11 @@ function bool(value: unknown, fallback: boolean): boolean {
   return typeof value === 'boolean' ? value : fallback
 }
 
+function int(value: unknown, fallback: number, min: number, max: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
+  return Math.min(Math.max(Math.round(value), min), max)
+}
+
 function str(value: unknown, fallback: string, maxLength = 512): string {
   if (typeof value !== 'string') return fallback
   // eslint-disable-next-line no-control-regex
@@ -175,6 +180,7 @@ export function coerceSettings(input: unknown, base: AppSettings = DEFAULT_SETTI
       const asString = str(raw, '', 1024).trim()
       return asString.length > 0 ? asString : null
     })(),
+    parallelDownloads: int(value('parallelDownloads'), base.parallelDownloads, 1, 16),
     notifyOnInstallComplete: bool(value('notifyOnInstallComplete'), base.notifyOnInstallComplete),
     notifyOnRobloxExit: bool(value('notifyOnRobloxExit'), base.notifyOnRobloxExit),
     notifyOnActivityJoin: bool(value('notifyOnActivityJoin'), base.notifyOnActivityJoin),

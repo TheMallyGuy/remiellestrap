@@ -15,6 +15,12 @@ export interface ExtractOptions {
   /** Called with the number of entries written so far. */
   onProgress?: (entriesDone: number, entriesTotal: number) => void
   signal?: AbortSignal
+  /**
+   * When set, only these entries are extracted. Paths are relative to the
+   * archive root and matched case-insensitively, so they can be compared
+   * against file paths stored elsewhere (e.g. the mods manifest).
+   */
+  only?: string[]
 }
 
 export class InvalidZipError extends Error {
@@ -73,6 +79,9 @@ export async function extractZip(
   const zipfile = await openZip(zipPath)
   const written: string[] = []
   const total = zipfile.entryCount
+  const onlySet = options.only
+    ? new Set(options.only.map((file) => file.replace(/\\/g, '/').toLowerCase()))
+    : null
 
   await ensureDir(destination)
 
@@ -122,6 +131,12 @@ export async function extractZip(
 
       const target = join(destination, safeName)
       if (!isInside(destination, target)) {
+        zipfile.readEntry()
+        return
+      }
+
+      // Filtered extraction: skip anything not explicitly requested.
+      if (onlySet && !onlySet.has(safeName.replace(/\\/g, '/').toLowerCase())) {
         zipfile.readEntry()
         return
       }

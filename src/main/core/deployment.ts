@@ -1,5 +1,9 @@
+import { join } from 'path'
 import { createLogger } from '../utils/logger'
-import { getJson, getText, testConnection } from '../services/http'
+import { paths } from '../utils/paths'
+import { ensureDir, pathExists, removeFile } from '../utils/fs'
+import { extractZip } from '../utils/zip'
+import { downloadToFile, getJson, getText, testConnection } from '../services/http'
 
 /**
  * Roblox deployment system.
@@ -302,4 +306,95 @@ export function appSettingsXml(): string {
     '</Settings>',
     ''
   ].join('\r\n')
+}
+
+export interface PackageInfo {
+  packageName: string | null
+  /** Extraction prefix relative to the version directory ('' = version root). */
+  prefix: string
+}
+
+/**
+ * Maps a client-relative file path back to the package archive that supplied
+ * it, plus the prefix the archive is extracted under. Longest prefix wins so a
+ * `content/avatar/...` path resolves to `content-avatar.zip` rather than one of
+ * the root packages.
+ */
+export function resolvePackageInfo(relativePath: string, binaryType: BinaryType): PackageInfo {
+  const map = packageDirectoryMap(binaryType)
+  const normalized = relativePath.replace(/\\/g, '/').toLowerCase()
+  const sorted = Object.entries(map).sort((a, b) => b[1].length - a[1].length)
+  const match = sorted.find(
+    ([, prefix]) => prefix === '' || normalized.startsWith(prefix.toLowerCase())
+  )
+  return match ? { packageName: match[0], prefix: match[1] } : { packageName: null, prefix: '' }
+}
+
+/** Package name that contains a given client file, or null when unknown. */
+export function getPackageForFile(relativePath: string, binaryType: BinaryType): string | null {
+  return resolvePackageInfo(relativePath, binaryType).packageName
+}
+
+/**
+ * Restores a single client file from its source package archive, used when
+ * disabling a mod should put the original file back. Re-downloads the package
+ * from the CDN when it is no longer in the download cache.
+ */
+export async function restoreFileFromPackage(
+  relativePath: string,
+  versionGuid: string,
+  installDir: string,
+  binaryType: BinaryType,
+  channel: string
+): Promise<string[]> {
+  const { packageName, prefix } = resolvePackageInfo(relativePath, binaryType)
+  if (!packageName) return []
+
+  const zipPath = join(paths.downloads, `${versionGuid}-${packageName}`)
+
+  if (!(await pathExists(zipPath))) {
+    await downloadRestorePackage(packageName, versionGuid, channel, zipPath)
+  }
+
+  const normalized = relativePath.replace(/\\/g, '/')
+  const normalizedLower = normalized.toLowerCase()
+  // The archive holds paths relative to the extraction prefix.
+  const entryPath =
+    prefix && normalizedLower.startsWith(prefix.toLowerCase())
+      ? normalized.slice(prefix.length).replace(/^\//, '')
+      : normalized
+
+  const destination = prefix ? join(installDir, ...prefix.split('/')) : installDir
+  await ensureDir(destination)
+  // Empty result means the file was not present in the package at all.
+  return extractZip(zipPath, destination, { only: [entryPath] })
+}
+
+/** Downloads a package for restore, failing over across the CDN mirrors. */
+async function downloadRestorePackage(
+  packageName: string,
+  versionGuid: string,
+  channel: string,
+  zipPath: string
+): Promise<void> {
+  const baseUrl = await resolveBaseUrl()
+  const target: DeploymentTarget = { baseUrl, channel, versionGuid }
+  let lastError: unknown = null
+
+  for (const url of packageUrls(target, packageName)) {
+    try {
+      logger.info(`Restoring package ${packageName} from ${new URL(url).host}`)
+      await downloadToFile(url, zipPath, { retries: 0 })
+      return
+    } catch (error) {
+      lastError = error
+      await removeFile(zipPath)
+      logger.warn(`Restore download of ${packageName} failed: ${String(error)}`)
+    }
+  }
+
+  throw new Error(
+    `Roblox package ${packageName} could not be downloaded to restore a file. ` +
+      `Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`
+  )
 }
