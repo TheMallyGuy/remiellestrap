@@ -26,6 +26,12 @@ let bootstrapperWindow: BrowserWindow | null = null
 let saveTimer: NodeJS.Timeout | null = null
 /** Set when the user really wants to exit, so close is not swallowed by tray. */
 let quitting = false
+/**
+ * True when the main window was visible and we hid it ourselves to make room
+ * for the bootstrapper window. Used to restore it exactly when the bootstrapper
+ * closes — never forcing a tray-hidden window back into view.
+ */
+let mainHiddenForBootstrapper = false
 
 export function getMainWindow(): BrowserWindow | null {
   return mainWindow && !mainWindow.isDestroyed() ? mainWindow : null
@@ -207,15 +213,16 @@ export function createMainWindow(): BrowserWindow {
 }
 
 /**
- * Opens the compact, dedicated install/launch window. Keeping bootstrapper
- * progress out of the settings window makes website deep links feel like a
- * real launcher and leaves the main UI usable while packages are downloaded.
+ * Opens the compact, dedicated install/launch window. It is the single progress
+ * surface: while it is open the main window is tucked away and brought back
+ * when the window closes, so website deep links feel like a real launcher.
  */
 export function showBootstrapperWindow(): BrowserWindow {
   const existing = getBootstrapperWindow()
   if (existing) {
     if (existing.isMinimized()) existing.restore()
     if (!existing.isVisible()) existing.show()
+    existing.moveTop()
     existing.focus()
     return existing
   }
@@ -247,12 +254,28 @@ export function showBootstrapperWindow(): BrowserWindow {
 
   bootstrapperWindow = window
 
+  // The install/launch window is the single progress surface: tuck the main
+  // window away while it is open, remembering whether we did the hiding so a
+  // window the user had already sent to the tray stays hidden.
+  const main = getMainWindow()
+  if (main && !main.isDestroyed() && main.isVisible() && !quitting) {
+    main.hide()
+    mainHiddenForBootstrapper = true
+  }
+
   window.on('ready-to-show', () => {
-    if (!window.isDestroyed()) window.show()
+    if (!window.isDestroyed()) {
+      window.show()
+      window.focus()
+    }
   })
 
   window.on('closed', () => {
     bootstrapperWindow = null
+    if (mainHiddenForBootstrapper) {
+      mainHiddenForBootstrapper = false
+      if (!quitting) showMainWindow()
+    }
   })
 
   hardenWindow(window)

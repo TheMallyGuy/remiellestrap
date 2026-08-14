@@ -54,6 +54,11 @@
     { value: '__custom', label: 'Custom channel…' }
   ])
 
+  const parallelOptions = [1, 2, 4, 6, 8].map((count) => ({
+    value: String(count),
+    label: `${count} ${count === 1 ? 'file' : 'files'}`
+  }))
+
   $effect(() => {
     void refresh()
   })
@@ -376,6 +381,21 @@
       id="auto-updates"
       checked={!config.disableUpdates}
       onchange={(value) => void updateSettings({ disableUpdates: !value })}
+    />
+  </SettingRow>
+
+  <SettingRow
+    title="Parallel downloads"
+    description="How many Roblox packages are downloaded at the same time. More is faster, but only up to the speed of your connection."
+    for="parallel-downloads"
+  >
+    <Select
+      id="parallel-downloads"
+      value={String(config.parallelDownloads)}
+      options={parallelOptions}
+      label="Parallel downloads"
+      onchange={(value) => void updateSettings({ parallelDownloads: Number(value) })}
+      class="w-32"
     />
   </SettingRow>
 

@@ -2,7 +2,7 @@ import { app } from 'electron'
 import { createLogger } from '../utils/logger'
 import { findLaunchUri, sanitizeLaunchUri } from '../utils/uri'
 import { emit } from '../services/events'
-import { getMainWindow, navigateTo, showMainWindow } from './window'
+import { getMainWindow, showMainWindow } from './window'
 import { setPendingUri } from '../ipc/index'
 import * as bootstrapper from '../core/bootstrapper'
 
@@ -59,16 +59,15 @@ export function handleLaunchUri(rawUri: string | null | undefined, source: strin
 
   logger.info(`Launch URI from ${source}: ${uri.slice(0, 120)}`)
 
-  const window = getMainWindow()
-
-  if (!window) {
+  if (!getMainWindow()) {
     // Cold start: the renderer will ask for this as soon as it is ready.
     setPendingUri(uri)
     return
   }
 
-  showMainWindow()
-  navigateTo('bootstrapper')
+  // The bootstrapper window is the single progress surface now, so there is no
+  // need to surface the main window first. Give any open window an immediate
+  // "preparing" state, then hand off to the bootstrapper run.
   emit('bootstrapper:progress', {
     ...bootstrapper.currentProgress(),
     stage: 'connecting',

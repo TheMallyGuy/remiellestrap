@@ -1,5 +1,5 @@
 import { spawn } from 'child_process'
-import { stat, writeFile } from 'fs/promises'
+import { readdir, stat, writeFile } from 'fs/promises'
 import { join } from 'path'
 import type {
   BootstrapperProgress,
@@ -9,7 +9,7 @@ import type {
   UpdateCheckResult
 } from '@shared/models'
 import { createLogger } from '../utils/logger'
-import { paths, stockRobloxRoot, versionDirectory } from '../utils/paths'
+import { paths, stockRobloxRoot } from '../utils/paths'
 import { ensureDir, formatBytes, pathExists, removeDir, removeFile } from '../utils/fs'
 import { md5File } from '../utils/hash'
 import { extractZip, isZipFile } from '../utils/zip'
@@ -35,6 +35,14 @@ import {
   type DeploymentTarget,
   type PackageEntry
 } from './deployment'
+import {
+  latestEntry,
+  loadVersions,
+  reindexVersions,
+  resetVersions,
+  saveVersion,
+  type AppType
+} from './versions'
 
 /**
  * The bootstrapper: resolves the latest deployment, downloads and verifies the
@@ -91,13 +99,23 @@ function throwIfCancelled(signal: AbortSignal): void {
   if (signal.aborted) throw new CancelledError()
 }
 
-function installRoot(): string {
-  return getSettings().installLocation ?? paths.versions
+/** Base directory that contains the `Versions` folder. */
+function installBase(): string {
+  return getSettings().installLocation ?? paths.root
+}
+
+/** Directory the `version-*` install folders live in. */
+export function versionsDirectory(): string {
+  return join(installBase(), 'Versions')
+}
+
+function appTypeFor(binaryType: BinaryType): AppType {
+  return binaryType === 'WindowsStudio64' ? 'studio' : 'player'
 }
 
 /** Where the client for a given version GUID lives. */
 export function installDirectoryFor(versionGuid: string): string {
-  return versionDirectory(installRoot(), versionGuid)
+  return join(versionsDirectory(), versionGuid)
 }
 
 export function clientExecutable(versionGuid: string, binaryType: BinaryType): string {
@@ -106,19 +124,19 @@ export function clientExecutable(versionGuid: string, binaryType: BinaryType): s
 
 /** True when the recorded install is present and its executable exists. */
 export async function isInstalled(binaryType: BinaryType = 'WindowsPlayer'): Promise<boolean> {
-  const state = getRobloxState()
-  if (!state.installedVersion) return false
-  return pathExists(clientExecutable(state.installedVersion, binaryType))
+  const entry = await latestEntry(appTypeFor(binaryType))
+  if (!entry) return false
+  return pathExists(clientExecutable(entry.versionHash, binaryType))
 }
 
 export async function checkForUpdates(signal?: AbortSignal): Promise<UpdateCheckResult> {
   const settings = getSettings()
-  const state = getRobloxState()
   const channel = settings.channel || 'LIVE'
   const binaryType = binaryTypeFor(settings.preferredLaunchMode)
+  const entry = await latestEntry(appTypeFor(binaryType))
 
   const base: UpdateCheckResult = {
-    installedVersion: state.installedVersion,
+    installedVersion: entry?.versionHash ?? null,
     latestVersion: null,
     channel,
     upToDate: false,
@@ -130,12 +148,15 @@ export async function checkForUpdates(signal?: AbortSignal): Promise<UpdateCheck
 
   if (settings.disableUpdates && base.installed) {
     logger.info('Update checks are disabled; treating the current install as current')
-    return { ...base, latestVersion: state.installedVersion, upToDate: true }
+    return { ...base, latestVersion: entry?.versionHash ?? null, upToDate: true }
   }
 
   try {
     const latest = await getLatestClientVersion(binaryType, channel, signal)
-    const upToDate = base.installed && state.installedVersion === latest.clientVersionUpload
+    const upToDate =
+      base.installed &&
+      entry?.versionHash === latest.clientVersionUpload &&
+      entry?.channel === channel
 
     await saveRobloxState({ lastUpdateCheck: Date.now() })
 
@@ -166,7 +187,7 @@ async function ensureInstalled(options: InstallOptions): Promise<string> {
   const settings = getSettings()
   const channel = settings.channel || 'LIVE'
   const binaryType = binaryTypeFor(settings.preferredLaunchMode)
-  const state = getRobloxState()
+  const appType = appTypeFor(binaryType)
 
   report({
     stage: 'connecting',
@@ -185,10 +206,11 @@ async function ensureInstalled(options: InstallOptions): Promise<string> {
 
   const directory = installDirectoryFor(versionGuid)
   const executable = join(directory, executableName(binaryType))
+  const entry = await latestEntry(appType)
   const alreadyInstalled =
     !options.force &&
-    state.installedVersion === versionGuid &&
-    state.installedChannel === channel &&
+    entry?.versionHash === versionGuid &&
+    entry.channel === channel &&
     (await pathExists(executable))
 
   if (alreadyInstalled) {
@@ -223,48 +245,83 @@ async function ensureInstalled(options: InstallOptions): Promise<string> {
   await ensureDir(paths.downloads)
 
   const downloaded = new Map<string, string>()
+  let packagesDone = 0
   let completedBytes = 0
+  const received = new Map<number, number>()
+  const active = new Set<string>()
+  let aborted = false
+  let firstError: Error | null = null
+  const concurrency = Math.min(Math.max(getSettings().parallelDownloads, 1), 16)
 
-  for (const [index, entry] of packages.entries()) {
-    throwIfCancelled(signal)
-
-    const cached = join(paths.downloads, `${versionGuid}-${entry.name}`)
-    const startedAt = completedBytes
-
+  const reportDownload = (): void => {
+    if (aborted) return
+    const inFlight = [...received.values()].reduce((sum, value) => sum + value, 0)
+    const aggregate = completedBytes + inFlight
     report({
       stage: 'downloading',
       message: `Downloading Roblox ${latest.version}`,
-      detail: entry.name,
-      currentPackage: entry.name,
-      packagesDone: index,
+      detail: undefined,
+      currentPackage: [...active].slice(0, 4).join(', ') || undefined,
+      packagesDone,
       packagesTotal: packages.length,
       bytesTotal: totalBytes,
-      bytesDownloaded: completedBytes,
-      progress: totalBytes > 0 ? completedBytes / totalBytes : null,
+      bytesDownloaded: aggregate,
+      progress: totalBytes > 0 ? Math.min(aggregate / totalBytes, 1) : null,
       version: versionGuid,
       cancellable: true
     })
-
-    const valid = await verifyPackage(cached, entry)
-
-    if (valid) {
-      logger.info(`Using cached package ${entry.name}`)
-    } else {
-      await downloadPackage(target, entry, cached, signal, (received) => {
-        completedBytes = startedAt + received
-        report({
-          stage: 'downloading',
-          bytesDownloaded: completedBytes,
-          progress: totalBytes > 0 ? Math.min(completedBytes / totalBytes, 1) : null,
-          message: `Downloading Roblox ${latest.version}`,
-          detail: `${entry.name} · ${formatBytes(completedBytes)} of ${formatBytes(totalBytes)}`
-        })
-      })
-    }
-
-    completedBytes = startedAt + entry.packedSize
-    downloaded.set(entry.name, cached)
   }
+
+  let nextIndex = 0
+
+  // Worker pool: each worker pulls the next package until the queue is empty,
+  // mirroring the stock bootstrapper's parallel download behaviour.
+  const workers = Array.from({ length: concurrency }, async () => {
+    while (!aborted && !signal.aborted) {
+      const index = nextIndex++
+      if (index >= packages.length) return
+      const entry = packages[index]
+      if (!entry) return
+
+      active.add(entry.name)
+      reportDownload()
+
+      const cached = join(paths.downloads, `${versionGuid}-${entry.name}`)
+
+      try {
+        const valid = await verifyPackage(cached, entry)
+        if (valid) {
+          logger.info(`Using cached package ${entry.name}`)
+        } else {
+          await downloadPackage(target, entry, cached, signal, (amount) => {
+            if (aborted) return
+            received.set(index, amount)
+            reportDownload()
+          })
+        }
+        downloaded.set(entry.name, cached)
+      } catch (error) {
+        if (signal.aborted) {
+          aborted = true
+          return
+        }
+        aborted = true
+        firstError = error instanceof Error ? error : new Error(String(error))
+        return
+      } finally {
+        active.delete(entry.name)
+        received.delete(index)
+      }
+
+      completedBytes += entry.packedSize
+      packagesDone += 1
+      reportDownload()
+    }
+  })
+
+  await Promise.all(workers)
+  throwIfCancelled(signal)
+  if (firstError) throw firstError
 
   report({
     stage: 'extracting',
@@ -318,7 +375,9 @@ async function ensureInstalled(options: InstallOptions): Promise<string> {
     modManifest: []
   })
 
-  if (!getSettings().disableUpdates) await cleanupOldVersions(versionGuid)
+  await saveVersion(versionGuid, appType, channel)
+
+  if (!getSettings().disableUpdates) await cleanupOldVersions()
 
   logger.info(`Installed ${versionGuid} to ${directory}`)
   return versionGuid
@@ -408,18 +467,22 @@ async function downloadPackage(
   )
 }
 
-/** Removes version directories and cached packages that are no longer current. */
-async function cleanupOldVersions(keepVersion: string): Promise<void> {
-  const { readdir } = await import('fs/promises')
-  const root = installRoot()
+/**
+ * Removes version directories and cached packages that the version store no
+ * longer references. Keeps the latest install of every app type rather than a
+ * single global version, so player and studio can coexist.
+ */
+async function cleanupOldVersions(): Promise<void> {
+  const store = await loadVersions()
+  const keep = new Set(store.versions.map((entry) => entry.versionHash))
 
   try {
-    const entries = await readdir(root, { withFileTypes: true })
+    const entries = await readdir(versionsDirectory(), { withFileTypes: true })
     for (const entry of entries) {
       if (!entry.isDirectory()) continue
-      if (entry.name === keepVersion) continue
       if (!/^version-[0-9a-f]+$/i.test(entry.name)) continue
-      await removeDir(join(root, entry.name))
+      if (keep.has(entry.name)) continue
+      await removeDir(join(versionsDirectory(), entry.name))
       logger.info(`Removed stale version ${entry.name}`)
     }
   } catch {
@@ -430,7 +493,8 @@ async function cleanupOldVersions(keepVersion: string): Promise<void> {
     const entries = await readdir(paths.downloads, { withFileTypes: true })
     for (const entry of entries) {
       if (!entry.isFile()) continue
-      if (entry.name.startsWith(`${keepVersion}-`)) continue
+      const match = entry.name.match(/^(version-[0-9a-f]+)-/i)
+      if (!match || keep.has(match[1])) continue
       await removeFile(join(paths.downloads, entry.name))
     }
   } catch {
@@ -466,15 +530,30 @@ export async function run(options: InstallRunOptions = {}): Promise<Bootstrapper
   const signal = controller.signal
 
   try {
+    // Reconcile the version store with what is actually on disk before deciding
+    // whether anything needs installing.
+    await reindexVersions(versionsDirectory(), getSettings().channel || 'LIVE').catch((error) => {
+      logger.warn(`Version reindex failed: ${String(error)}`)
+    })
+
     const versionGuid = await ensureInstalled({ force: options.force, signal })
     const directory = installDirectoryFor(versionGuid)
     const settings = getSettings()
+    const binaryType = binaryTypeFor(settings.preferredLaunchMode)
 
     // Revert the previous run's mod files so disabled mods stop applying.
     const state = getRobloxState()
     if (state.modManifest.length > 0) {
       report({ stage: 'applying-mods', message: 'Reverting previous mods', progress: null })
-      await revertMods(directory, state.modManifest)
+      await revertMods(
+        {
+          versionDirectory: directory,
+          versionGuid,
+          binaryType,
+          channel: settings.channel || 'LIVE'
+        },
+        state.modManifest
+      )
     }
 
     throwIfCancelled(signal)
@@ -516,7 +595,6 @@ export async function run(options: InstallRunOptions = {}): Promise<Bootstrapper
       cancellable: false
     })
 
-    const binaryType = binaryTypeFor(settings.preferredLaunchMode)
     const executable = clientExecutable(versionGuid, binaryType)
     await launchClient(executable, directory, options.rawUri ?? null)
 
@@ -637,7 +715,8 @@ export async function forceReinstall(): Promise<BootstrapperResult> {
 export async function uninstall(keepSettings: boolean): Promise<void> {
   logger.info(`Uninstalling (keepSettings=${keepSettings})`)
 
-  await removeDir(installRoot())
+  await removeDir(versionsDirectory())
+  await resetVersions()
   await removeDir(paths.downloads)
   await removeDir(paths.cache)
   await removeDir(paths.modifications)

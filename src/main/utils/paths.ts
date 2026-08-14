@@ -32,6 +32,9 @@ export const paths = {
   get robloxStateFile(): string {
     return join(dataRoot(), 'RobloxState.json')
   },
+  get versionsFile(): string {
+    return join(dataRoot(), 'versions.json')
+  },
   get logs(): string {
     return join(dataRoot(), 'Logs')
   },
@@ -80,9 +83,4 @@ export function stockRobloxRoot(): string {
     return join(localAppData, 'Roblox')
   }
   return join(homedir(), '.local', 'share', 'Roblox')
-}
-
-/** Directory a specific version GUID is installed into. */
-export function versionDirectory(installRoot: string, versionGuid: string): string {
-  return join(installRoot, 'Versions', versionGuid)
 }

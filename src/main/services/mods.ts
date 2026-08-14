@@ -18,6 +18,7 @@ import {
 } from '../utils/fs'
 import { extractZip, isZipFile } from '../utils/zip'
 import { shortId } from '../utils/hash'
+import { getPackageForFile, restoreFileFromPackage, type BinaryType } from '../core/deployment'
 import { getSettings, saveSettings } from './settingsStore'
 import { saveRobloxState } from './stateStore'
 
@@ -490,30 +491,56 @@ export async function applyMods(versionDirectory: string): Promise<string[]> {
   return manifest
 }
 
+export interface RevertOptions {
+  versionDirectory: string
+  versionGuid: string
+  binaryType: BinaryType
+  channel: string
+}
+
 /**
- * Removes files a previous launch's mods wrote. Called before applying a fresh
- * set so disabled mods stop taking effect without a full reinstall.
+ * Puts the stock files a previous launch's mods overwrote back in place by
+ * extracting them from their source package, and removes any files the mods
+ * added that have no stock equivalent. Called before applying a fresh set so
+ * disabled mods stop taking effect without a full reinstall.
  */
 export async function revertMods(
-  versionDirectory: string,
+  options: RevertOptions,
   manifest: readonly string[]
 ): Promise<number> {
-  let removed = 0
+  let reverted = 0
 
   for (const relativePath of manifest) {
-    const target = safeJoin(versionDirectory, ...relativePath.split('/'))
-    if (!(await pathExists(target))) continue
+    const target = safeJoin(options.versionDirectory, ...relativePath.split('/'))
+
     try {
-      const info = await stat(target)
-      if (info.isFile()) {
-        await rm(target, { force: true })
-        removed += 1
+      const packageName = getPackageForFile(relativePath, options.binaryType)
+
+      if (packageName) {
+        const written = await restoreFileFromPackage(
+          relativePath,
+          options.versionGuid,
+          options.versionDirectory,
+          options.binaryType,
+          options.channel
+        )
+        if (written.length > 0) {
+          reverted += 1
+          continue
+        }
       }
-    } catch {
-      // A file we can't remove is not fatal; the reinstall path will fix it.
+
+      // No stock package supplied this file — the mod added it. Remove it.
+      if ((await pathExists(target)) && (await stat(target)).isFile()) {
+        await rm(target, { force: true })
+        reverted += 1
+      }
+    } catch (error) {
+      // A file we can't restore is not fatal; the reinstall path will fix it.
+      logger.warn(`Could not revert '${relativePath}': ${String(error)}`)
     }
   }
 
-  if (removed > 0) logger.info(`Reverted ${removed} modded file(s)`)
-  return removed
+  if (reverted > 0) logger.info(`Reverted ${reverted} modded file(s)`)
+  return reverted
 }

@@ -45,6 +45,7 @@ export interface AppSettings {
   reduceMotion: boolean
   showBootstrapperArt: boolean
   installLocation: string | null
+  parallelDownloads: number
   notifyOnInstallComplete: boolean
   notifyOnRobloxExit: boolean
   notifyOnActivityJoin: boolean
@@ -104,6 +105,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   reduceMotion: false,
   showBootstrapperArt: true,
   installLocation: null,
+  parallelDownloads: 4,
   notifyOnInstallComplete: true,
   notifyOnRobloxExit: true,
   notifyOnActivityJoin: false,
