@@ -159,6 +159,10 @@ export function coerceSettings(input: unknown, base: AppSettings = DEFAULT_SETTI
       base.processPriority
     ),
     enableDiscordRpc: bool(value('enableDiscordRpc'), base.enableDiscordRpc),
+    discordClientId: (() => {
+      const raw = str(value('discordClientId'), base.discordClientId, 32).trim()
+      return /^\d{10,30}$/.test(raw) ? raw : base.discordClientId
+    })(),
     enableActivityTracking: bool(value('enableActivityTracking'), base.enableActivityTracking),
     showAccountOnRpc: bool(value('showAccountOnRpc'), base.showAccountOnRpc),
     enabledMods: has('enabledMods') ? stringArray(source.enabledMods) : base.enabledMods,

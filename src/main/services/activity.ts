@@ -12,28 +12,48 @@ import { getJson } from './http'
 import { emit } from './events'
 import { getSettings } from './settingsStore'
 import { getRobloxState, recordActivity, updateLastActivity } from './stateStore'
+import * as rpc from './rpc'
 
 /**
  * Activity tracking.
  *
  * Roblox writes a per-session log to %LOCALAPPDATA%\Roblox\logs. We tail the
- * newest file and match the same markers the stock bootstrapper looks for to
- * work out which experience the user joined and when they left.
+ * newest file and match the same markers Froststrap/Bloxstrap's
+ * `ActivityWatcher` looks for, so the join/leave/teleport/private/reserved
+ * transitions and in-game `[BloxstrapRPC]` messages behave identically.
  */
 
 const logger = createLogger('Activity')
 const execAsync = promisify(exec)
 
-/* Log markers, mirroring Bloxstrap's ActivityWatcher. */
-const GAME_JOINING_ENTRY = /! Joining game '([0-9a-f-]{36})' place ([0-9]+) at ([0-9.]+)/
-const GAME_JOINING_UDMUX = /UDMUX Address = ([0-9.]+), Port = [0-9]+ \| RCC Server Address/
-const GAME_JOINED_ENTRY = /Connection accepted from ([0-9.]+)\|[0-9]+ with response/
-const GAME_DISCONNECTED = /\[FLog::Network\] Time to disconnect replication data:/
-const GAME_TELEPORTING = /\[FLog::SingleSurfaceApp\] initiateTeleport/
-const GAME_LEAVING = /\[FLog::SingleSurfaceApp\] leaveUGCGameInternal/
-const GAME_MESSAGE_ENTRY = /\[FLog::Output\] \[BloxstrapRPC\] (.*)/
-const PLACE_LAUNCHER_REQUEST =
-  /! Joining game.*|makePlaceLauncherRequest(ForTeleport)?: requestCount: [0-9], url: https:\/\/gamejoin\.roblox\.com\/v1\/([^\s/]+)/
+/* ------------------------------------------------------------------ Markers
+ * These entries are technically volatile: they only appear depending on the
+ * client's configured FLog level. The set below is the minimum needed to track
+ * a session the way the reference ActivityWatcher does.
+ * ------------------------------------------------------------------------ */
+const GAME_JOINING_ENTRY = '[FLog::Output] ! Joining game'
+const GAME_TELEPORTING_ENTRY = '[FLog::GameJoinUtil] GameJoinUtil::initiateTeleportToPlace'
+const GAME_JOINING_PRIVATE_SERVER_ENTRY =
+  '[FLog::GameJoinUtil] GameJoinUtil::joinGamePostPrivateServer'
+const GAME_JOINING_RESERVED_SERVER_ENTRY =
+  '[FLog::GameJoinUtil] GameJoinUtil::initiateTeleportToReservedServer'
+const GAME_JOINING_UNIVERSE_ENTRY = '[FLog::GameJoinLoadTime] Report game_join_loadtime:'
+const GAME_JOINING_UDMUX_ENTRY = '[FLog::Network] UDMUX Address = '
+const GAME_JOINED_ENTRY = '[FLog::Network] serverId:'
+const GAME_DISCONNECTED_ENTRY = '[FLog::Network] Time to disconnect replication data:'
+const GAME_LEAVING_ENTRY = '[FLog::SingleSurfaceApp] leaveUGCGameInternal'
+const GAME_DISCONNECT_REASON_ENTRY = '[FLog::Network] Sending disconnect with reason:'
+const GAME_MESSAGE_ENTRY = '[FLog::Output] [BloxstrapRPC]'
+
+/* ----------------------------------------------------------------- Patterns */
+const GAME_JOINING_ENTRY_PATTERN = /! Joining game '([0-9a-f-]{36})' place ([0-9]+) at ([0-9.]+)/
+const GAME_JOINING_PRIVATE_SERVER_PATTERN = /"accessCode":"([0-9a-f-]{36})"/
+const GAME_JOINING_UNIVERSE_PATTERN = /universeid:([0-9]+).*userid:([0-9]+)/
+const GAME_JOINING_UDMUX_PATTERN =
+  /UDMUX Address = ([0-9.]+), Port = [0-9]+ \| RCC Server Address = ([0-9.]+), Port = [0-9]+/
+const GAME_JOINED_ENTRY_PATTERN = /serverId: ([0-9.]+)\|[0-9]+/
+const GAME_DISCONNECT_REASON_PATTERN = /Sending disconnect with reason: (\d+)/
+const GAME_MESSAGE_ENTRY_PATTERN = /\[BloxstrapRPC\] (.*)/
 
 const POLL_INTERVAL_MS = 1000
 const PROCESS_POLL_MS = 3000
@@ -45,8 +65,14 @@ interface WatcherState {
   activity: ActivityEntry | null
   inGame: boolean
   robloxRunning: boolean
+  /** Server type applied to the next activity, set by the private marker. */
   pendingServerType: ServerType
+  /** Private-server access code, parsed from the join marker. */
+  accessCode: string | null
+  /** Set when a teleport has been initiated but not yet joined. */
   isTeleport: boolean
+  /** Set when the teleport targets a reserved server. */
+  reservedMarker: boolean
 }
 
 const state: WatcherState = {
@@ -57,7 +83,9 @@ const state: WatcherState = {
   inGame: false,
   robloxRunning: false,
   pendingServerType: 'public',
-  isTeleport: false
+  accessCode: null,
+  isTeleport: false,
+  reservedMarker: false
 }
 
 let logTimer: NodeJS.Timeout | null = null
@@ -175,53 +203,103 @@ function readRange(file: string, start: number, end: number): Promise<string> {
   })
 }
 
+/**
+ * Mirrors `ActivityWatcher::ProcessPlayerLogEntry` — the same three states
+ * (idle / joining / in-game) with the same markers in the same order.
+ */
 async function handleLine(line: string): Promise<void> {
   if (!line) return
 
-  const launcher = PLACE_LAUNCHER_REQUEST.exec(line)
-  if (launcher && launcher[2]) {
-    state.pendingServerType = serverTypeFor(launcher[2])
-  }
+  // Checked before the state machine, exactly like the reference.
+  if (line.includes(GAME_LEAVING_ENTRY)) {
+    logger.info('User is back into the desktop app')
 
-  if (GAME_TELEPORTING.test(line)) {
-    state.isTeleport = true
-    return
-  }
-
-  const joining = GAME_JOINING_ENTRY.exec(line)
-  if (joining) {
-    const [, jobId, placeId, address] = joining
-    state.activity = {
-      placeId,
-      universeId: null,
-      jobId,
-      gameName: null,
-      gameThumbnailUrl: null,
-      serverType: state.pendingServerType,
-      machineAddress: address,
-      isTeleport: state.isTeleport,
-      joinedAt: Date.now(),
-      leftAt: null
+    if (state.activity && state.activity.placeId !== '0' && !state.inGame) {
+      logger.info('User appears to be leaving from a cancelled/errored join')
+      state.activity = null
+      state.pendingServerType = 'public'
+      state.accessCode = null
+      state.isTeleport = false
+      state.reservedMarker = false
+      publish()
     }
-    state.inGame = false
-    state.isTeleport = false
-    publish()
-    void enrich(state.activity)
+
     return
   }
 
-  const udmux = GAME_JOINING_UDMUX.exec(line)
-  if (udmux && state.activity) {
-    state.activity.machineAddress = udmux[1]
-    publish()
-    return
+  const reason = GAME_DISCONNECT_REASON_PATTERN.exec(line)
+  if (reason && line.includes(GAME_DISCONNECT_REASON_ENTRY)) {
+    const code = Number(reason[1])
+    if (code === 1) logger.info(`Inactivity timeout detected (reason code: ${code})`)
+    else if (code === 277) logger.info(`Internet disconnection detected (reason code: ${code})`)
+    else logger.info(`Disconnect reason code: ${code}`)
   }
 
-  const joined = GAME_JOINED_ENTRY.exec(line)
-  if (joined) {
-    if (state.activity) {
+  if (!state.inGame && !state.activity) {
+    // We are not in a game, nor in the process of joining one.
+    if (line.includes(GAME_JOINING_PRIVATE_SERVER_ENTRY)) {
+      state.pendingServerType = 'private'
+
+      const match = GAME_JOINING_PRIVATE_SERVER_PATTERN.exec(line)
+      if (match) state.accessCode = match[1]
+      return
+    }
+
+    const joining = GAME_JOINING_ENTRY_PATTERN.exec(line)
+    if (joining && line.includes(GAME_JOINING_ENTRY)) {
+      const [, jobId, placeId, address] = joining
+
+      state.activity = {
+        placeId,
+        universeId: null,
+        jobId,
+        gameName: null,
+        gameThumbnailUrl: null,
+        serverType: state.pendingServerType,
+        machineAddress: address,
+        accessCode: state.accessCode,
+        isTeleport: state.isTeleport,
+        joinedAt: Date.now(),
+        leftAt: null
+      }
+
+      state.inGame = false
+      state.isTeleport = false
+
+      if (state.reservedMarker) {
+        state.activity.serverType = 'reserved'
+        state.reservedMarker = false
+      }
+
+      logger.info(`Joining game (place ${state.activity.placeId}, job ${jobId})`)
+      publish()
+      void enrich(state.activity)
+    }
+  } else if (!state.inGame && state.activity) {
+    // We are not confirmed to be in a game, but we are joining one.
+    const universe = GAME_JOINING_UNIVERSE_PATTERN.exec(line)
+    if (universe && line.includes(GAME_JOINING_UNIVERSE_ENTRY)) {
+      state.activity.universeId = universe[1]
+      logger.info(`Joining universe ${universe[1]} as user ${universe[2]}`)
+      return
+    }
+
+    const udmux = GAME_JOINING_UDMUX_PATTERN.exec(line)
+    if (udmux && line.includes(GAME_JOINING_UDMUX_ENTRY)) {
+      if (udmux[2] === state.activity.machineAddress) {
+        state.activity.machineAddress = udmux[1]
+        logger.info(`Server is UDMUX protected (place ${state.activity.placeId})`)
+      }
+      return
+    }
+
+    const joined = GAME_JOINED_ENTRY_PATTERN.exec(line)
+    if (joined && line.includes(GAME_JOINED_ENTRY)) {
+      if (joined[1] !== state.activity.machineAddress) return
+
       state.activity.machineAddress = joined[1]
       state.inGame = true
+
       await recordActivity(state.activity)
       logger.info(
         `Joined place ${state.activity.placeId} (job ${state.activity.jobId ?? 'unknown'})`
@@ -236,77 +314,106 @@ async function handleLine(line: string): Promise<void> {
         })
       }
     }
-    return
-  }
+  } else if (state.inGame && state.activity) {
+    // We are confirmed to be in a game.
+    if (line.includes(GAME_DISCONNECTED_ENTRY)) {
+      logger.info(`Disconnected from game (place ${state.activity.placeId})`)
 
-  const message = GAME_MESSAGE_ENTRY.exec(line)
-  if (message) {
-    handleGameMessage(message[1])
-    return
-  }
-
-  if (GAME_LEAVING.test(line) || GAME_DISCONNECTED.test(line)) {
-    if (state.activity) {
       const finished = { ...state.activity, leftAt: Date.now() }
       await updateLastActivity({ leftAt: finished.leftAt })
-      logger.info(`Left place ${finished.placeId}`)
       emit('activity:leave', { activity: finished })
-    }
-    state.activity = null
-    state.inGame = false
-    publish()
-  }
-}
 
-function serverTypeFor(endpoint: string): ServerType {
-  const lower = endpoint.toLowerCase()
-  if (lower.includes('join-private-game')) return 'private'
-  if (lower.includes('join-reserved-game')) return 'reserved'
-  return 'public'
+      state.activity = null
+      state.inGame = false
+      state.pendingServerType = 'public'
+      state.accessCode = null
+      publish()
+      return
+    }
+
+    if (line.includes(GAME_TELEPORTING_ENTRY)) {
+      logger.info(`Initiating teleport to server (place ${state.activity.placeId})`)
+      state.isTeleport = true
+      return
+    }
+
+    if (line.includes(GAME_JOINING_RESERVED_SERVER_ENTRY)) {
+      state.isTeleport = true
+      state.reservedMarker = true
+      return
+    }
+
+    const message = GAME_MESSAGE_ENTRY_PATTERN.exec(line)
+    if (message && line.includes(GAME_MESSAGE_ENTRY)) {
+      handleGameMessage(message[1])
+    }
+  }
 }
 
 /**
- * Handles [BloxstrapRPC] messages emitted by experiences that support rich
- * presence. The payload is JSON; malformed messages are ignored.
+ * Handles `[BloxstrapRPC]` messages emitted by experiences that support rich
+ * presence. The payload is JSON (`{ command, data }`); malformed messages are
+ * ignored. `SetRichPresence` is relayed to Discord, matching the reference.
  */
 function handleGameMessage(payload: string): void {
-  try {
-    const parsed = JSON.parse(payload) as { command?: string; data?: Record<string, unknown> }
-    if (parsed.command !== 'SetRichPresence' || !parsed.data) return
+  let parsed: { command?: unknown; data?: unknown }
 
+  try {
+    parsed = JSON.parse(payload) as { command?: unknown; data?: unknown }
+  } catch {
+    logger.warn('Ignored malformed BloxstrapRPC message')
+    return
+  }
+
+  if (typeof parsed.command !== 'string' || parsed.command.length === 0) {
+    logger.warn('Ignored BloxstrapRPC message without a command')
+    return
+  }
+
+  logger.info(`Received RPC message: '${parsed.command}'`)
+
+  if (parsed.command === 'SetRichPresence' && parsed.data) {
+    rpc.setRichPresence(parsed.data)
+
+    // Keep the in-app preview in step with what Discord is now showing.
+    const data = parsed.data as {
+      details?: unknown
+      state?: unknown
+    }
     emit('rpc:update', {
       connected: true,
-      details: typeof parsed.data.details === 'string' ? parsed.data.details : null,
-      state: typeof parsed.data.state === 'string' ? parsed.data.state : null,
+      details: typeof data.details === 'string' ? data.details : null,
+      state: typeof data.state === 'string' ? data.state : null,
       largeImage: null,
       since: state.activity?.joinedAt ?? null
     })
-  } catch {
-    logger.warn('Ignored malformed BloxstrapRPC message')
   }
 }
 
 /** Looks up the experience name and icon so the UI has something to show. */
 async function enrich(activity: ActivityEntry): Promise<void> {
   try {
-    const universe = await getJson<{ universeId?: number }>(
-      `https://apis.roblox.com/universes/v1/places/${activity.placeId}/universe`,
-      { retries: 1, timeoutMs: 8000 }
-    )
-    if (!universe?.universeId) return
-    if (state.activity !== activity) return
-
-    activity.universeId = String(universe.universeId)
+    // Prefer the universe id read straight from the log; fall back to the
+    // places -> universe lookup when the client never printed it.
+    if (!activity.universeId) {
+      const universe = await getJson<{ universeId?: number }>(
+        `https://apis.roblox.com/universes/v1/places/${activity.placeId}/universe`,
+        { retries: 1, timeoutMs: 8000 }
+      )
+      if (!universe?.universeId) return
+      if (state.activity !== activity) return
+      activity.universeId = String(universe.universeId)
+    }
 
     const details = await getJson<{ data?: Array<{ name?: string }> }>(
-      `https://games.roblox.com/v1/games?universeIds=${universe.universeId}`,
+      `https://games.roblox.com/v1/games?universeIds=${activity.universeId}`,
       { retries: 1, timeoutMs: 8000 }
     )
     const name = details?.data?.[0]?.name
     if (name && state.activity === activity) activity.gameName = name
 
     const icons = await getJson<{ data?: Array<{ imageUrl?: string; state?: string }> }>(
-      `https://thumbnails.roblox.com/v1/games/icons?universeIds=${universe.universeId}&size=128x128&format=Png&isCircular=false`,
+      `https://thumbnails.roblox.com/v1/games/icons?universeIds=${activity.universeId}&size=128x128&format=Png&isCircular=false`,
       { retries: 1, timeoutMs: 8000 }
     )
     const icon = icons?.data?.[0]
@@ -395,6 +502,10 @@ export async function killRoblox(): Promise<boolean> {
 export function rejoinUri(): string | null {
   const activity = state.activity
   if (!activity) return null
+
+  if (activity.serverType === 'private' && activity.accessCode) {
+    return `roblox://experiences/start?placeId=${activity.placeId}&linkCode=${activity.accessCode}`
+  }
   if (activity.serverType !== 'public' || !activity.jobId) {
     return `roblox://experiences/start?placeId=${activity.placeId}`
   }
