@@ -144,6 +144,32 @@ export interface UpdateCheckResult {
   error: string | null
 }
 
+export type AppUpdateStatus =
+  | 'not-supported'
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'downloading'
+  | 'downloaded'
+  | 'up-to-date'
+  | 'error'
+
+export interface AppUpdateState {
+  status: AppUpdateStatus
+  currentVersion: string
+  latestVersion: string | null
+  /** 0..1, or null while indeterminate. */
+  progress: number | null
+  bytesPerSecond: number
+  bytesDownloaded: number
+  bytesTotal: number
+  releaseName: string | null
+  releaseNotes: string | null
+  releaseUrl: string | null
+  checkedAt: number | null
+  error: string | null
+}
+
 export interface LaunchRequest {
   /** Raw roblox:// or roblox-player: URI. */
   uri?: string

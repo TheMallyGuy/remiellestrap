@@ -9,6 +9,7 @@
     loadAppState
   } from './lib/stores/activity.svelte'
   import { applyArtUpdate, loadAllArt } from './lib/stores/art.svelte'
+  import { applyAppUpdate, loadAppUpdate } from './lib/stores/appUpdate.svelte'
   import {
     applyComplete,
     applyError,
@@ -64,7 +65,13 @@
     restorePage(config.lastOpenedPage)
 
     // Fire these together; none depends on another.
-    await Promise.all([loadActivity(), loadAppState(), syncProgress(), loadAllArt()])
+    await Promise.all([
+      loadActivity(),
+      loadAppState(),
+      syncProgress(),
+      loadAllArt(),
+      loadAppUpdate()
+    ])
 
     booted = true
 
@@ -103,6 +110,7 @@
       listen('theme:artUpdated', (payload) => applyArtUpdate(payload.slot, payload.asset)),
       listen('toast:show', (payload) => pushToast(payload)),
       listen('settings:changed', (payload) => applyExternalSettings(payload)),
+      listen('app:update', (payload) => applyAppUpdate(payload)),
       listen('window:state', (payload) => applyWindowState(payload)),
 
       // A deep link that arrived while the app was already running, or a tray

@@ -10,6 +10,7 @@ import type {
 import { isEventChannel, isInvokeChannel } from '@shared/ipc'
 import type {
   ActivityUpdate,
+  AppUpdateState,
   ArtAsset,
   ArtRequest,
   BooruPost,
@@ -161,6 +162,13 @@ const api = {
     openFolder: (id?: string): Promise<OperationResult> => invoke('mods:openFolder', { id }),
     generateColorMod: (request: ColorModRequest): Promise<OperationResult<ModEntry[]>> =>
       invoke('mods:generateColorMod', request)
+  },
+
+  app: {
+    getUpdateState: (): Promise<AppUpdateState> => invoke('app:getUpdateState'),
+    checkForUpdates: (): Promise<AppUpdateState> => invoke('app:checkForUpdates'),
+    downloadUpdate: (): Promise<OperationResult> => invoke('app:downloadUpdate'),
+    restartToUpdate: (): Promise<OperationResult> => invoke('app:restartToUpdate')
   },
 
   system: {

@@ -29,6 +29,7 @@ import * as booru from '../services/booru'
 import * as fastflags from '../services/fastflags'
 import * as mods from '../services/mods'
 import * as activity from '../services/activity'
+import * as appUpdater from '../services/appUpdater'
 import * as bootstrapper from '../core/bootstrapper'
 import {
   ValidationError,
@@ -348,6 +349,16 @@ const handlers: HandlerMap = {
     }
     return mods.generateColorMod(payload)
   },
+
+  /* ------------------------------------------------- application updates */
+
+  'app:getUpdateState': async () => appUpdater.getUpdateState(),
+
+  'app:checkForUpdates': async () => appUpdater.checkForAppUpdates(),
+
+  'app:downloadUpdate': async () => appUpdater.downloadAppUpdate(),
+
+  'app:restartToUpdate': async () => appUpdater.restartAndInstall(),
 
   /* ---------------------------------------------------------- system */
 

@@ -9,6 +9,7 @@ import { onEvent, toast } from './services/events'
 import * as activity from './services/activity'
 import * as rpc from './services/rpc'
 import * as booru from './services/booru'
+import { disposeAppUpdater, startAppUpdater } from './services/appUpdater'
 import { disposeIpcHandlers, registerIpcHandlers } from './ipc/index'
 import { installCsp } from './app/csp'
 import { registerProtocolHandler, registerSchemes } from './app/protocol'
@@ -113,6 +114,7 @@ async function bootstrap(): Promise<void> {
   })
 
   createMainWindow()
+  startAppUpdater()
 
   // The tray is always created: it is the only way back into the app once
   // close-to-tray is switched on mid-session.
@@ -154,6 +156,7 @@ app.on('will-quit', () => {
 
   activity.stop()
   rpc.stop()
+  disposeAppUpdater()
   disposeNotifications()
   destroyTray()
   disposeIpcHandlers()
