@@ -4,7 +4,13 @@
   import { artSlot } from '../stores/art.svelte'
   import { activity } from '../stores/activity.svelte'
   import { pushToast } from '../stores/toasts.svelte'
-  import { formatDateTime } from '../utils/format'
+  import {
+    appUpdate,
+    checkForAppUpdate,
+    downloadAppUpdate,
+    restartToUpdate
+  } from '../stores/appUpdate.svelte'
+  import { formatBytes, formatDateTime, percent } from '../utils/format'
   import ArtSlot from '../components/ArtSlot.svelte'
   import Icon from '../components/Icon.svelte'
   import PageHeader from '../components/PageHeader.svelte'
@@ -20,6 +26,28 @@
 
   const header = artSlot('about_header')
   const appState = $derived(activity.state)
+  const update = $derived(appUpdate.state)
+
+  const updateStatus = $derived.by(() => {
+    switch (update.status) {
+      case 'checking':
+        return { label: 'Checking GitHub releases', tone: 'text-ivory-400' }
+      case 'available':
+        return { label: `Version ${update.latestVersion ?? ''} available`, tone: 'text-gold-300' }
+      case 'downloading':
+        return { label: 'Downloading update', tone: 'text-gold-300' }
+      case 'downloaded':
+        return { label: 'Ready to install', tone: 'text-positive' }
+      case 'up-to-date':
+        return { label: 'Up to date', tone: 'text-positive' }
+      case 'error':
+        return { label: 'Update check failed', tone: 'text-caution' }
+      case 'not-supported':
+        return { label: 'Manual updates in this build', tone: 'text-ivory-500' }
+      default:
+        return { label: 'Not checked yet', tone: 'text-ivory-500' }
+    }
+  })
 
   $effect(() => {
     void (async () => {
@@ -104,6 +132,95 @@
     v{info?.appVersion ?? '—'}
   </span>
 </div>
+
+<Section title="Application updates" bare class="mt-9">
+  <div class="surface prism-edge px-4 py-4">
+    <div class="flex flex-wrap items-start justify-between gap-5">
+      <div class="min-w-0">
+        <p class="text-2xs uppercase tracking-[0.14em] text-ivory-600">RemielleStrap releases</p>
+        <p class="mt-1.5 text-sm text-ivory-100">{updateStatus.label}</p>
+        <p class="mt-1 text-2xs leading-relaxed text-ivory-500">
+          Installed v{update.currentVersion}
+          {#if update.latestVersion}
+            · latest v{update.latestVersion}
+          {/if}
+          {#if update.checkedAt}
+            · checked {formatDateTime(update.checkedAt)}
+          {/if}
+        </p>
+        {#if update.error}
+          <p class="mt-2 max-w-prose text-2xs leading-relaxed text-caution">{update.error}</p>
+        {/if}
+      </div>
+
+      <div class="flex shrink-0 flex-wrap items-center gap-2">
+        {#if update.status === 'downloaded'}
+          <button type="button" class="btn-primary" onclick={() => void restartToUpdate()}>
+            <Icon name="refresh" size={12} />
+            Restart to install
+          </button>
+        {:else if update.status === 'available'}
+          <button type="button" class="btn-primary" onclick={() => void downloadAppUpdate()}>
+            <Icon name="download" size={12} />
+            Download update
+          </button>
+        {/if}
+
+        <button
+          type="button"
+          class="btn-secondary"
+          onclick={() => void checkForAppUpdate()}
+          disabled={appUpdate.busy}
+        >
+          {#if appUpdate.busy}
+            <Icon name="spinner" size={12} class="animate-spin" />
+          {:else}
+            <Icon name="refresh" size={12} />
+          {/if}
+          Check now
+        </button>
+
+        {#if update.releaseUrl}
+          <button
+            type="button"
+            class="btn-ghost"
+            onclick={() => void openExternal(update.releaseUrl!)}
+          >
+            <Icon name="external" size={12} />
+            Release
+          </button>
+        {/if}
+      </div>
+    </div>
+
+    {#if update.status === 'downloading'}
+      <div class="mt-4">
+        <div class="h-1.5 overflow-hidden rounded-full bg-ivory-200/8">
+          <div
+            class="h-full rounded-full bg-gold-400 transition-[width] duration-200"
+            style={`width: ${percent(update.progress) || '0%'}`}
+          ></div>
+        </div>
+        <p class="mt-2 text-2xs text-ivory-500">
+          {formatBytes(update.bytesDownloaded)} of {formatBytes(update.bytesTotal)}
+          {#if update.bytesPerSecond > 0}
+            · {formatBytes(update.bytesPerSecond)}/s
+          {/if}
+        </p>
+      </div>
+    {/if}
+
+    {#if update.releaseNotes}
+      <div
+        class="mt-4 max-h-40 overflow-y-auto rounded-card border border-ivory-200/8 bg-ink-950/50 p-3"
+      >
+        <p class="whitespace-pre-wrap text-2xs leading-relaxed text-ivory-400">
+          {update.releaseNotes}
+        </p>
+      </div>
+    {/if}
+  </div>
+</Section>
 
 <div class="grid gap-9 lg:grid-cols-2">
   <!-- Versions -->

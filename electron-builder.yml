@@ -36,6 +36,9 @@ nsis:
   deleteAppDataOnUninstall: false
 mac:
   category: public.app-category.utilities
+  target:
+    - dmg
+    - zip
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
     - NSDocumentsFolderUsageDescription: RemielleStrap requests access to the user's Documents folder.

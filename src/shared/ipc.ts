@@ -11,6 +11,7 @@ import type { AppSettings } from './settings'
 import type { AppState, RobloxState } from './state'
 import type {
   ActivityUpdate,
+  AppUpdateState,
   ArtAsset,
   ArtRequest,
   BooruPost,
@@ -84,6 +85,12 @@ export interface InvokeMap {
   'mods:openFolder': { request: { id?: string } | void; response: OperationResult }
   'mods:generateColorMod': { request: ColorModRequest; response: OperationResult<ModEntry[]> }
 
+  /* application updates */
+  'app:getUpdateState': { request: void; response: AppUpdateState }
+  'app:checkForUpdates': { request: void; response: AppUpdateState }
+  'app:downloadUpdate': { request: void; response: OperationResult }
+  'app:restartToUpdate': { request: void; response: OperationResult }
+
   /* system */
   'system:getInfo': { request: void; response: SystemInfo }
   'system:openLogs': { request: void; response: OperationResult }
@@ -120,6 +127,7 @@ export interface EventMap {
   'theme:artUpdated': { slot: string; asset: ArtAsset | null }
   'toast:show': ToastPayload
   'settings:changed': AppSettings
+  'app:update': AppUpdateState
   'window:state': { maximized: boolean; focused: boolean }
   'navigate:page': { page: string }
 }
@@ -166,6 +174,10 @@ export const INVOKE_CHANNELS = [
   'mods:reorder',
   'mods:openFolder',
   'mods:generateColorMod',
+  'app:getUpdateState',
+  'app:checkForUpdates',
+  'app:downloadUpdate',
+  'app:restartToUpdate',
   'system:getInfo',
   'system:openLogs',
   'system:openAppData',
@@ -197,6 +209,7 @@ export const EVENT_CHANNELS = [
   'theme:artUpdated',
   'toast:show',
   'settings:changed',
+  'app:update',
   'window:state',
   'navigate:page'
 ] as const satisfies readonly EventChannel[]
