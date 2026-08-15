@@ -124,6 +124,13 @@
     document.documentElement.classList.toggle('reduce-motion', settings.value.reduceMotion)
   })
 
+  // The accent picker is applied as a `data-accent` attribute on <html> so the
+  // stylesheet can remap the accent ramp; components never read the setting.
+  $effect(() => {
+    document.documentElement.dataset.accent =
+      settings.value.accentMode === 'prism' ? 'prism' : 'gold'
+  })
+
   $effect(() => {
     const theme = settings.value.theme
     const root = document.documentElement

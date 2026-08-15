@@ -11,6 +11,8 @@ export interface ActivityEntry {
   gameThumbnailUrl: string | null
   serverType: ServerType
   machineAddress: string | null
+  /** Private-server link code, when the server was joined via an access code. */
+  accessCode: string | null
   isTeleport: boolean
   joinedAt: number
   leftAt: number | null

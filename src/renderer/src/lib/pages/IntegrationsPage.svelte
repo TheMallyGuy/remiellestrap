@@ -166,6 +166,33 @@
     />
   </SettingRow>
 
+  <SettingRow
+    title="Discord application"
+    description="The client ID Discord uses to name the presence. Create an application at discord.com/developers to make it read “RemielleStrap”."
+    for="rpc-client-id"
+  >
+    <input
+      id="rpc-client-id"
+      class="field field-mono max-w-64"
+      value={config.discordClientId}
+      spellcheck="false"
+      autocomplete="off"
+      placeholder="1005469189907173486"
+      disabled={!config.enableDiscordRpc}
+      onblur={(event) => {
+        const value = event.currentTarget.value.trim()
+        if (value && /^\d{10,30}$/.test(value) && value !== config.discordClientId) {
+          void updateSettings({ discordClientId: value })
+        } else {
+          event.currentTarget.value = config.discordClientId
+        }
+      }}
+      onkeydown={(event) => {
+        if (event.key === 'Enter') event.currentTarget.blur()
+      }}
+    />
+  </SettingRow>
+
   <SettingRow title="Connection" description="Status of the local Discord IPC socket." stacked>
     <div
       class="flex items-center gap-3 rounded-control border border-ivory-200/8 bg-ink-950/40 px-3 py-2.5"

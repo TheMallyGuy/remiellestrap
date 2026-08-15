@@ -51,8 +51,7 @@
   --font-sans:
     'Inter var', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   --font-display: 'Cormorant Garamond', 'Iowan Old Style', Georgia, 'Times New Roman', serif;
-  --font-mono:
-    ui-monospace, 'SF Mono', 'JetBrains Mono', 'Cascadia Mono', Consolas, monospace;
+  --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', 'Cascadia Mono', Consolas, monospace;
 
   /* A tight, deliberate type scale. */
   --text-2xs: 0.6875rem;
@@ -304,6 +303,34 @@
   .theme-light body {
     background-color: var(--color-ink-900);
     color: var(--color-ivory-200);
+  }
+
+  /*
+   * Prism accent — the "pink" treatment.
+   *
+   * The accent picker toggles `data-accent="prism"` on <html>. Rather than
+   * every component learning about the setting, we remap the gold ramp to
+   * Remielle's rose-pink here, so every existing `gold-*` utility (the primary
+   * button, links, focus rings, active nav, toggles) turns pink at once. The
+   * `:root` selectors carry more specificity than `.theme-light`, and the
+   * combined selector below covers the light theme's warm, deep pink variant.
+   */
+  :root[data-accent='prism'] {
+    --color-gold-200: #f7d3e2;
+    --color-gold-300: #eda8c6;
+    --color-gold-400: #e27fa9;
+    --color-gold-500: #cf5a8c;
+    --color-gold-600: #a83d6c;
+    --color-gold-700: #77284c;
+  }
+
+  :root[data-accent='prism'].theme-light {
+    --color-gold-200: #77284c;
+    --color-gold-300: #8f355d;
+    --color-gold-400: #a84372;
+    --color-gold-500: #b95283;
+    --color-gold-600: #d2769f;
+    --color-gold-700: #ecabc6;
   }
 }
 

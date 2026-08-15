@@ -30,6 +30,8 @@ export interface AppSettings {
   preferredLaunchMode: LaunchMode
   processPriority: ProcessPriority
   enableDiscordRpc: boolean
+  /** Discord application client id used for rich presence. */
+  discordClientId: string
   enableActivityTracking: boolean
   showAccountOnRpc: boolean
   enabledMods: string[]
@@ -85,6 +87,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   preferredLaunchMode: 'player',
   processPriority: 'normal',
   enableDiscordRpc: true,
+  discordClientId: '1005469189907173486',
   enableActivityTracking: true,
   showAccountOnRpc: false,
   enabledMods: [],
