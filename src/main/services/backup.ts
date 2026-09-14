@@ -160,7 +160,7 @@ export async function exportBackup(request: BackupRequest): Promise<OperationRes
     app: 'RemielleStrap',
     format: 1,
     createdAt: Date.now(),
-    appVersion: '1.0.0',
+    appVersion: '1.0.1',
     platform: process.platform,
     sections,
     accountsEncrypted: request.includeAccounts
