@@ -213,6 +213,43 @@ export function createMainWindow(): BrowserWindow {
 }
 
 /**
+ * Window size and background for the bootstrapper, honouring a custom launcher
+ * definition when one is configured.
+ *
+ * This lives in the main process because the size has to be known before the
+ * window exists; the renderer only ever reads the definition for its colours
+ * and copy.
+ */
+function launcherWindowSize(): { width: number; height: number; background: string } {
+  const fallback = { width: BOOTSTRAPPER_WIDTH, height: BOOTSTRAPPER_HEIGHT, background: '#0a0a0b' }
+
+  try {
+    const settings = getSettings()
+    if (settings.launcherStyle !== 'custom' || !settings.launcherCustom.trim()) return fallback
+
+    const parsed = JSON.parse(settings.launcherCustom) as {
+      width?: unknown
+      height?: unknown
+      background?: unknown
+    }
+
+    const width = typeof parsed.width === 'number' ? Math.min(Math.max(parsed.width, 360), 900) : fallback.width
+    const height =
+      typeof parsed.height === 'number' ? Math.min(Math.max(parsed.height, 120), 420) : fallback.height
+    const background =
+      typeof parsed.background === 'string' && /^#[0-9a-f]{3,8}$/i.test(parsed.background.trim())
+        ? parsed.background.trim()
+        : fallback.background
+
+    return { width: Math.round(width), height: Math.round(height), background }
+  } catch {
+    // A malformed definition falls back to the shipped size rather than
+    // refusing to open the window at all.
+    return fallback
+  }
+}
+
+/**
  * Opens the compact, dedicated install/launch window. It is the single progress
  * surface: while it is open the main window is tucked away and brought back
  * when the window closes, so website deep links feel like a real launcher.
@@ -227,19 +264,23 @@ export function showBootstrapperWindow(): BrowserWindow {
     return existing
   }
 
+  // A custom launcher definition may ask for a different window size; the
+  // bounds are clamped so a typo cannot produce an unusable window.
+  const { width, height, background } = launcherWindowSize()
+
   const window = new BrowserWindow({
-    width: BOOTSTRAPPER_WIDTH,
-    height: BOOTSTRAPPER_HEIGHT,
-    minWidth: BOOTSTRAPPER_WIDTH,
-    minHeight: BOOTSTRAPPER_HEIGHT,
-    maxWidth: BOOTSTRAPPER_WIDTH,
-    maxHeight: BOOTSTRAPPER_HEIGHT,
+    width,
+    height,
+    minWidth: Math.min(width, 360),
+    minHeight: Math.min(height, 120),
+    maxWidth: 900,
+    maxHeight: 420,
     show: false,
     frame: false,
     resizable: false,
     maximizable: false,
     fullscreenable: false,
-    backgroundColor: '#0a0a0b',
+    backgroundColor: background,
     autoHideMenuBar: true,
     title: 'Installing Roblox — RemielleStrap',
     webPreferences: {

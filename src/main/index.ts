@@ -24,6 +24,7 @@ import {
   getMainWindow,
   isQuitting,
   setQuitting,
+  showBootstrapperWindow,
   showMainWindow
 } from './app/window'
 import { createTray, destroyTray } from './app/tray'
@@ -33,8 +34,12 @@ import {
   handleLaunchUri,
   registerOpenUrlHandler,
   registerProtocols,
+  shortcutArguments,
   uriFromArgv
 } from './app/deeplink'
+import * as accounts from './services/accounts'
+import { run as runBootstrapper } from './core/bootstrapper'
+import type { ShortcutArguments } from './app/deeplink'
 
 /**
  * Application entry point.
@@ -56,6 +61,31 @@ if (!acquireSingleInstanceLock()) {
 } else {
   registerOpenUrlHandler()
   void bootstrap()
+}
+
+/**
+ * Launches a game shortcut.
+ *
+ * The account and region recorded in the shortcut are used to mint a fresh join
+ * ticket, and a region preference picks the server, so the shortcut behaves
+ * exactly like pressing Play with those options chosen.
+ */
+async function launchFromShortcut(args: ShortcutArguments): Promise<void> {
+  const logger = createLogger('Shortcut')
+
+  try {
+    const resolved = await accounts.resolveJoinUri({
+      placeId: args.placeId,
+      accountId: args.accountId ?? undefined
+    })
+
+    showBootstrapperWindow()
+    const result = await runBootstrapper({ launch: true, rawUri: resolved.uri, accountId: resolved.accountId })
+
+    if (!result.ok) logger.warn(`Shortcut launch failed: ${result.message}`)
+  } catch (error) {
+    logger.error(`Shortcut launch failed: ${String(error)}`)
+  }
 }
 
 async function bootstrap(): Promise<void> {
@@ -149,11 +179,16 @@ async function bootstrap(): Promise<void> {
     logger.warn(`Art prefetch failed: ${String(error)}`)
   })
 
-  // Cold start: a URI may already be sitting in argv.
+  // Cold start: a URI, or a shortcut's arguments, may already be in argv.
   const coldUri = uriFromArgv(process.argv)
+  const coldShortcut = shortcutArguments(process.argv)
+
   if (coldUri) {
     logger.info('Cold start with a launch URI')
     handleLaunchUri(coldUri, 'cold-start')
+  } else if (coldShortcut) {
+    logger.info(`Cold start from a shortcut for place ${coldShortcut.placeId}`)
+    void launchFromShortcut(coldShortcut)
   }
 
   app.on('activate', () => {

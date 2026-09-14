@@ -9,13 +9,19 @@
     rejoin
   } from '../stores/activity.svelte'
   import { settings, updateSettings } from '../stores/settings.svelte'
+  import type { PlaytimeSummary, StudioBridgeInfo } from '@shared/models'
+  import { api, errorMessage } from '../ipc'
+  import { playtime, loadPlaytime, resetPlaytime } from '../stores/playtime.svelte'
+  import { pushToast } from '../stores/toasts.svelte'
   import { formatDuration, formatRelative, placeLabel } from '../utils/format'
   import EmptyState from '../components/EmptyState.svelte'
   import Icon from '../components/Icon.svelte'
   import PageHeader from '../components/PageHeader.svelte'
   import Section from '../components/Section.svelte'
+  import Select from '../components/Select.svelte'
   import SettingRow from '../components/SettingRow.svelte'
   import Switch from '../components/Switch.svelte'
+  import Dialog from '../components/Dialog.svelte'
 
   /**
    * Discord presence and Roblox activity tracking — everything RemielleStrap
@@ -55,6 +61,55 @@
   })
 
   const history = $derived(activity.history.slice(0, 8))
+
+  /* ------------------------------------------------- Playtime and Studio */
+
+  let bridge = $state<StudioBridgeInfo | null>(null)
+  let installingPlugin = $state(false)
+  let confirmReset = $state(false)
+
+  const totals = $derived<PlaytimeSummary>(playtime.value)
+
+  $effect(() => {
+    void loadPlaytime()
+    void refreshBridge()
+  })
+
+  async function refreshBridge(): Promise<void> {
+    try {
+      bridge = await api.studio.getBridge()
+    } catch {
+      bridge = null
+    }
+  }
+
+  async function installPlugin(): Promise<void> {
+    installingPlugin = true
+    try {
+      const result = await api.studio.installPlugin()
+
+      if (result.ok && result.data) {
+        bridge = result.data
+        pushToast({
+          kind: 'success',
+          title: 'Studio plugin installed',
+          message: 'Studio picks it up the next time it starts.'
+        })
+      } else {
+        pushToast({ kind: 'warning', title: 'Plugin not installed', message: result.error })
+      }
+    } catch (error) {
+      pushToast({ kind: 'error', title: 'Plugin not installed', message: errorMessage(error) })
+    } finally {
+      installingPlugin = false
+    }
+  }
+
+  const sessionLabel = $derived(
+    totals.currentSessionMs === null
+      ? null
+      : formatDuration(totals.currentSessionMs)
+  )
 </script>
 
 <PageHeader
@@ -299,3 +354,202 @@
     </ul>
   {/if}
 </Section>
+
+<div class="h-5"></div>
+
+<Section
+  title="Presence"
+  description="Exactly what the Discord card says, and when."
+>
+  <SettingRow
+    title="Mention the page you are on"
+    description="While you are in the launcher, the presence follows you around the app — Accounts, Mods, Servers — instead of saying “In the launcher”."
+  >
+    <Switch
+      checked={settings.value.rpcShowPage}
+      onchange={(value) => void updateSettings({ rpcShowPage: value })}
+    />
+  </SettingRow>
+
+  <SettingRow
+    title="Show session playtime"
+    description="Once a session has run for a minute, the state line becomes how long you have been playing."
+  >
+    <Switch
+      checked={settings.value.rpcShowPlaytime}
+      onchange={(value) => void updateSettings({ rpcShowPlaytime: value })}
+    />
+  </SettingRow>
+
+  <SettingRow
+    title="Idle line"
+    description="What the second line says while nothing is running."
+  >
+    <Select
+      value={settings.value.rpcStatusMode}
+      options={[
+        { value: 'game', label: 'The last experience played' },
+        { value: 'generic', label: 'A plain tagline' }
+      ]}
+      onchange={(value) =>
+        void updateSettings({ rpcStatusMode: value as typeof settings.value.rpcStatusMode })}
+    />
+  </SettingRow>
+
+  <SettingRow
+    title="Show the account name"
+    description="Adds which stored account you are launching as."
+  >
+    <Switch
+      checked={settings.value.showAccountOnRpc}
+      onchange={(value) => void updateSettings({ showAccountOnRpc: value })}
+    />
+  </SettingRow>
+</Section>
+
+<div class="h-5"></div>
+
+<Section
+  title="Playtime"
+  description="Sessions are timed between the client starting and exiting; anything under twenty seconds is ignored."
+>
+  <SettingRow title="Track playtime" description="Keeps per-game totals and the session history above.">
+    <Switch
+      checked={settings.value.trackPlaytime}
+      onchange={(value) => void updateSettings({ trackPlaytime: value })}
+    />
+  </SettingRow>
+
+  <SettingRow title="Tell me when a session ends" description="One toast with how long you played.">
+    <Switch
+      checked={settings.value.notifyPlaytimeOnExit}
+      onchange={(value) => void updateSettings({ notifyPlaytimeOnExit: value })}
+    />
+  </SettingRow>
+
+  <SettingRow
+    title="Totals"
+    description={`${totals.sessions} session(s) recorded${totals.firstLaunchAt ? ` since ${formatRelative(totals.firstLaunchAt)}` : ''}.`}
+  >
+    <div class="flex items-center gap-3 text-xs text-ivory-300">
+      <span class="font-medium">{formatDuration(totals.totalMs)}</span>
+      {#if sessionLabel}
+        <span class="chip border-positive/30 text-positive">now: {sessionLabel}</span>
+      {/if}
+      <button type="button" class="btn-ghost px-2 py-1 text-2xs" onclick={() => (confirmReset = true)}>
+        Clear
+      </button>
+    </div>
+  </SettingRow>
+
+  {#if totals.games.length > 0}
+    <SettingRow title="Most played" stacked>
+      <ul class="space-y-1">
+        {#each [...totals.games].sort((a, b) => b.totalMs - a.totalMs).slice(0, 6) as game (game.placeId)}
+          <li class="flex items-center gap-2 text-2xs">
+            {#if game.thumbnailUrl}
+              <img src={game.thumbnailUrl} alt="" class="h-6 w-9 rounded object-cover" loading="lazy" />
+            {/if}
+            <span class="min-w-0 flex-1 truncate text-ivory-300">{game.name || `Place ${game.placeId}`}</span>
+            <span class="text-ivory-500">{formatDuration(game.totalMs)}</span>
+          </li>
+        {/each}
+      </ul>
+    </SettingRow>
+  {/if}
+</Section>
+
+<div class="h-5"></div>
+
+<Section
+  title="Roblox Studio"
+  description="Studio cannot be observed the way the player can, so a small companion plugin reports what you have open over a loopback connection."
+>
+  <SettingRow
+    title="Publish Studio presence"
+    description="Shows the place you are editing on Discord while Studio is open."
+  >
+    <Switch
+      checked={settings.value.studioRpc}
+      onchange={(value) => void updateSettings({ studioRpc: value })}
+    />
+  </SettingRow>
+
+  <SettingRow
+    title="Bridge"
+    description={bridge
+      ? bridge.listening
+        ? `Listening on 127.0.0.1:${bridge.port}.`
+        : 'Enabled, but not listening — the port may be in use.'
+      : 'The bridge is switched off.'}
+  >
+    <Switch
+      checked={settings.value.studioBridgeEnabled}
+      onchange={(value) => void updateSettings({ studioBridgeEnabled: value })}
+    />
+  </SettingRow>
+
+  <SettingRow title="Port" description="Change it if something else on this machine has taken the default.">
+    <input
+      type="number"
+      class="field w-28 py-1.5 text-xs"
+      min="1024"
+      max="65535"
+      value={settings.value.studioBridgePort}
+      onblur={(event) => void updateSettings({ studioBridgePort: Number(event.currentTarget.value) })}
+    />
+  </SettingRow>
+
+  <SettingRow
+    title="Companion plugin"
+    description={bridge?.pluginInstalled
+      ? `Installed at ${bridge.pluginPath ?? 'the Studio plugins folder'}.`
+      : 'Writes RemielleStrap Presence.client.lua into Studio’s plugins folder.'}
+  >
+    <div class="flex items-center gap-2">
+      <button
+        type="button"
+        class="btn-secondary gap-1.5"
+        disabled={installingPlugin}
+        onclick={() => void installPlugin()}
+      >
+        <Icon name={installingPlugin ? 'spinner' : 'plug'} size={14} />
+        {bridge?.pluginInstalled ? 'Reinstall' : 'Install plugin'}
+      </button>
+
+      {#if bridge?.lastReportAt}
+        <span class="text-2xs text-ivory-500">
+          last report {formatRelative(bridge.lastReportAt)}
+        </span>
+      {/if}
+    </div>
+  </SettingRow>
+
+  {#if bridge?.placeName}
+    <SettingRow title="Studio right now" description={`Editing ${bridge.placeName}`}>
+      <span class="chip border-gold-500/30 text-gold-200">live</span>
+    </SettingRow>
+  {/if}
+</Section>
+
+{#if confirmReset}
+  <Dialog
+    title="Clear recorded playtime?"
+    description="Totals and per-game figures are deleted. The session history in the activity list is left alone."
+    onclose={() => (confirmReset = false)}
+  >
+    <div class="mt-4 flex justify-end gap-2">
+      <button type="button" class="btn-ghost" onclick={() => (confirmReset = false)}>Keep it</button>
+      <button
+        type="button"
+        class="btn-danger"
+        onclick={() => {
+          confirmReset = false
+          void resetPlaytime()
+        }}
+      >
+        Clear playtime
+      </button>
+    </div>
+  </Dialog>
+{/if}
