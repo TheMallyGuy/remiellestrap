@@ -20,6 +20,17 @@ export function md5File(file: string): Promise<string> {
   })
 }
 
+/** Streaming SHA-256, used to verify community mod downloads. */
+export function sha256File(file: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const hash = createHash('sha256')
+    const stream = createReadStream(file)
+    stream.on('error', reject)
+    stream.on('data', (chunk) => hash.update(chunk))
+    stream.on('end', () => resolve(hash.digest('hex')))
+  })
+}
+
 export function sha1(value: string): string {
   return createHash('sha1').update(value).digest('hex')
 }

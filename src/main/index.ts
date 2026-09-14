@@ -10,6 +10,12 @@ import * as activity from './services/activity'
 import * as rpc from './services/rpc'
 import * as booru from './services/booru'
 import { disposeAppUpdater, startAppUpdater } from './services/appUpdater'
+import * as crashHandler from './services/crashHandler'
+import * as studio from './services/studio'
+import * as tweaks from './services/tweaks'
+import * as cleaner from './services/cleaner'
+import * as multiInstance from './services/multiInstance'
+import * as playtime from './services/playtime'
 import { disposeIpcHandlers, registerIpcHandlers } from './ipc/index'
 import { installCsp } from './app/csp'
 import { registerProtocolHandler, registerSchemes } from './app/protocol'
@@ -100,10 +106,17 @@ async function bootstrap(): Promise<void> {
 
   // Keep rich presence in step with what the user is playing.
   onEvent('activity:update', (update) => {
-    if (update.inGame && update.activity) rpc.setPlaying(update.activity)
-    else rpc.setIdle()
+    if (update.inGame && update.activity) {
+      void playtime.attributeSession(update.activity.placeId)
+      rpc.setPlaying(update.activity)
+    } else {
+      rpc.setIdle()
+    }
   })
   onEvent('activity:leave', () => rpc.setIdle())
+
+  // The cleaner can be asked to run on a timer as well as at launch.
+  cleaner.scheduleTimer()
 
   // Apply runtime toggles the moment settings change.
   onEvent('settings:changed', (next) => {
@@ -111,7 +124,18 @@ async function bootstrap(): Promise<void> {
 
     if (next.enableActivityTracking) activity.start()
     else activity.stop()
+
+    crashHandler.sync()
+    tweaks.syncMemoryTrim()
+    void studio.sync()
+    cleaner.scheduleTimer()
   })
+
+  // Studio presence and the crash handler only matter while the client runs,
+  // so they follow the same lifecycle as the activity tracker.
+  if (settings.crashHandlerAutoClose) crashHandler.start()
+  tweaks.syncMemoryTrim()
+  void studio.start()
 
   createMainWindow()
   startAppUpdater()
@@ -156,6 +180,15 @@ app.on('will-quit', () => {
 
   activity.stop()
   rpc.stop()
+  crashHandler.stop()
+  tweaks.stopMemoryTrim()
+  studio.stop()
+  cleaner.stopScheduleTimer()
+  // The multi-instance watcher is detached and releases the singleton objects
+  // on its own once the last client exits, so there is nothing to tear down
+  // here beyond stopping our own tracking.
+  multiInstance.disarm()
+  void playtime.recoverOpenSession()
   disposeAppUpdater()
   disposeNotifications()
   destroyTray()

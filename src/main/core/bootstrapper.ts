@@ -21,6 +21,13 @@ import { getSettings } from '../services/settingsStore'
 import { getRobloxState, saveRobloxState } from '../services/stateStore'
 import { applyFlags } from '../services/fastflags'
 import { applyMods, revertMods } from '../services/mods'
+import * as cleaner from '../services/cleaner'
+import * as playtime from '../services/playtime'
+import * as tweaks from '../services/tweaks'
+import * as crashHandler from '../services/crashHandler'
+import * as multiInstance from '../services/multiInstance'
+import * as accountService from '../services/accounts'
+import * as activity from '../services/activity'
 import {
   appSettingsXml,
   binaryTypeFor,
@@ -113,9 +120,60 @@ function appTypeFor(binaryType: BinaryType): AppType {
   return binaryType === 'WindowsStudio64' ? 'studio' : 'player'
 }
 
-/** Where the client for a given version GUID lives. */
+/**
+ * Where the client for a given version GUID lives.
+ *
+ * With `fixedVersionFolder` on, every install is reused from a single folder
+ * named by the user (e.g. `RobloxPlayer`) rather than `version-<guid>`. That
+ * keeps the path stable for external tools, shortcuts and any mods that
+ * reference it by absolute path — the trade-off is that switching versions
+ * overwrites the folder instead of keeping both.
+ */
 export function installDirectoryFor(versionGuid: string): string {
+  const settings = getSettings()
+
+  if (settings.fixedVersionFolder) {
+    const name = settings.fixedVersionFolderName.trim()
+    if (/^[A-Za-z0-9 ._-]{1,40}$/.test(name) && !/^\.+$/.test(name)) {
+      return join(versionsDirectory(), name)
+    }
+    logger.warn(`Ignoring unusable fixed folder name '${settings.fixedVersionFolderName}'`)
+  }
+
   return join(versionsDirectory(), versionGuid)
+}
+
+/** True when installs are being written to a single reused folder. */
+export function usesFixedFolder(): boolean {
+  return getSettings().fixedVersionFolder
+}
+
+export interface CurrentInstall {
+  directory: string
+  versionGuid: string
+  binaryType: BinaryType
+  channel: string
+}
+
+/**
+ * The install that would be launched right now, or null when nothing is
+ * installed. Used by the mods page to apply changes to a live install.
+ */
+export async function currentInstall(): Promise<CurrentInstall | null> {
+  const settings = getSettings()
+  const binaryType = binaryTypeFor(settings.preferredLaunchMode)
+  const entry = await latestEntry(appTypeFor(binaryType))
+  if (!entry) return null
+
+  const directory = installDirectoryFor(entry.versionHash)
+  if (!(await pathExists(directory))) return null
+
+  return {
+    directory,
+    versionGuid: entry.versionHash,
+    binaryType,
+    channel: settings.channel || 'LIVE'
+  }
 }
 
 export function clientExecutable(versionGuid: string, binaryType: BinaryType): string {
@@ -207,10 +265,18 @@ async function ensureInstalled(options: InstallOptions): Promise<string> {
   const directory = installDirectoryFor(versionGuid)
   const executable = join(directory, executableName(binaryType))
   const entry = await latestEntry(appType)
+
+  // With a fixed folder the on-disk GUID is what matters, not the folder name;
+  // `fixedFolderVersion` records which build was written there last.
+  const robloxState = getRobloxState()
+  const recorded = usesFixedFolder()
+    ? (robloxState.fixedFolderVersion ?? entry?.versionHash ?? null)
+    : (entry?.versionHash ?? null)
+
   const alreadyInstalled =
     !options.force &&
-    entry?.versionHash === versionGuid &&
-    entry.channel === channel &&
+    recorded === versionGuid &&
+    (usesFixedFolder() || entry?.channel === channel) &&
     (await pathExists(executable))
 
   if (alreadyInstalled) {
@@ -385,10 +451,11 @@ async function ensureInstalled(options: InstallOptions): Promise<string> {
     installedAt: Date.now(),
     packageSignatures: signatures,
     installPath: directory,
-    modManifest: []
+    modManifest: [],
+    fixedFolderVersion: usesFixedFolder() ? versionGuid : null
   })
 
-  await saveVersion(versionGuid, appType, channel)
+  if (!usesFixedFolder()) await saveVersion(versionGuid, appType, channel)
 
   if (!getSettings().disableUpdates) await cleanupOldVersions()
 
@@ -486,6 +553,7 @@ async function downloadPackage(
  * single global version, so player and studio can coexist.
  */
 async function cleanupOldVersions(): Promise<void> {
+  const settings = getSettings()
   const store = await loadVersions()
   const keep = new Set(store.versions.map((entry) => entry.versionHash))
 
@@ -495,6 +563,8 @@ async function cleanupOldVersions(): Promise<void> {
       if (!entry.isDirectory()) continue
       if (!/^version-[0-9a-f]+$/i.test(entry.name)) continue
       if (keep.has(entry.name)) continue
+      // A fixed-folder install lives under a user-chosen name; never touch it.
+      if (settings.fixedVersionFolder) continue
       await removeDir(join(versionsDirectory(), entry.name))
       logger.info(`Removed stale version ${entry.name}`)
     }
@@ -515,11 +585,20 @@ async function cleanupOldVersions(): Promise<void> {
   }
 }
 
+export interface CurrentInstall {
+  directory: string
+  versionGuid: string
+  binaryType: BinaryType
+  channel: string
+}
+
 export interface InstallRunOptions {
   force?: boolean
   launch?: boolean
   uri?: ParsedLaunchUri | null
   rawUri?: string | null
+  /** Account to authenticate as. Falls back to the active account. */
+  accountId?: string | null
 }
 
 /**
@@ -543,6 +622,12 @@ export async function run(options: InstallRunOptions = {}): Promise<Bootstrapper
   const signal = controller.signal
 
   try {
+    // Housekeeping that must happen before the client starts: the optional
+    // launch-time clean, and clearing any session this app left open when it
+    // was killed while Roblox was running.
+    await playtime.recoverOpenSession().catch(() => undefined)
+    await cleaner.runScheduledWithinLaunch().catch(() => null)
+
     // Reconcile the version store with what is actually on disk before deciding
     // whether anything needs installing.
     await reindexVersions(versionsDirectory(), getSettings().channel || 'LIVE').catch((error) => {
@@ -578,6 +663,14 @@ export async function run(options: InstallRunOptions = {}): Promise<Bootstrapper
     report({ stage: 'writing-flags', message: 'Writing FastFlags', progress: null })
     const flagCount = await applyFlags(directory)
 
+    // Studio reads its own AppSettings.xml; write it when the user asked for
+    // the same treatment there.
+    if (settings.applySettingsToStudio) {
+      await writeStudioAppSettings().catch((error) =>
+        logger.warn(`Could not write Studio's AppSettings.xml: ${String(error)}`)
+      )
+    }
+
     if (!options.launch) {
       report({
         stage: 'done',
@@ -608,8 +701,23 @@ export async function run(options: InstallRunOptions = {}): Promise<Bootstrapper
       cancellable: false
     })
 
+    if (settings.multiInstanceLaunching && process.platform === 'win32') {
+      await multiInstance.arm().catch((error) =>
+        logger.warn(`Multi-instance arming failed, continuing single-instance: ${String(error)}`)
+      )
+    }
+
     const executable = clientExecutable(versionGuid, binaryType)
     await launchClient(executable, directory, options.rawUri ?? null)
+
+    // The client exists now: open a playtime session, apply the process tweaks
+    // and let the account manager record the launch.
+    await playtime.openSession(parsedPlaceId(options.uri ?? null, options.rawUri ?? null))
+    void tweaks.applyLaunchTweaks().catch(() => undefined)
+    if (options.accountId) {
+      void accountService.markUsed(options.accountId).catch(() => undefined)
+    }
+    void watchForExit(versionGuid)
 
     const result: BootstrapperResult = {
       ok: true,
@@ -705,6 +813,61 @@ async function launchClient(
   child.unref()
 }
 
+/** Pulls the place id out of a launch URI, for playtime attribution. */
+function parsedPlaceId(parsed: ParsedLaunchUri | null, raw: string | null): string | null {
+  if (parsed?.placeId) return parsed.placeId
+  if (!raw) return null
+  try {
+    const url = new URL(raw.replace(/^roblox-player:/, 'https://roblox.local/'))
+    return url.searchParams.get('placeId') ?? url.searchParams.get('placeid')
+  } catch {
+    return null
+  }
+}
+
+/** Writes AppSettings.xml for the Studio install, mirroring the player. */
+async function writeStudioAppSettings(): Promise<void> {
+  const studioEntry = await latestEntry('studio')
+  if (!studioEntry) return
+
+  const directory = installDirectoryFor(studioEntry.versionHash)
+  if (!(await pathExists(directory))) return
+
+  await writeFile(join(directory, 'AppSettings.xml'), appSettingsXml(), 'utf8')
+  logger.info('Wrote Studio AppSettings.xml')
+}
+
+/**
+ * Watches for the client to exit so the playtime session can be closed and the
+ * crash handler tidied away. Polling is used rather than a child-process event
+ * because the client detaches immediately on Windows.
+ */
+async function watchForExit(versionGuid: string): Promise<void> {
+  const startedAt = Date.now()
+
+  while (Date.now() - startedAt < 12 * 60 * 60_000) {
+    await new Promise((resolve) => setTimeout(resolve, 4000))
+    const running = await activity.isRobloxRunning()
+    if (running) continue
+
+    // Give the client a moment to flush its own state before we act on the
+    // assumption that it has gone.
+    await new Promise((resolve) => setTimeout(resolve, 1500))
+    if (await activity.isRobloxRunning()) continue
+
+    const duration = await playtime.closeSession().catch(() => 0)
+    await saveRobloxState({ lastExitAt: Date.now() } as never).catch(() => undefined)
+    emit('roblox:exit', { code: null, version: versionGuid, playtimeMs: duration })
+
+    if (getSettings().crashHandlerAutoClose) {
+      await crashHandler.close().catch(() => 0)
+    }
+
+    if (getSettings().memoryTrimEnabled) tweaks.stopMemoryTrim()
+    return
+  }
+}
+
 /** Convenience wrapper used by IPC handlers and deep links. */
 export async function install(force = false): Promise<BootstrapperResult> {
   return run({ force, launch: false })
@@ -713,7 +876,25 @@ export async function install(force = false): Promise<BootstrapperResult> {
 export async function launch(
   request: LaunchRequest | null | undefined
 ): Promise<BootstrapperResult> {
-  return run({ launch: true, rawUri: request?.uri ?? null })
+  const settings = getSettings()
+
+  // A launch requested with an account resolves to a ticket-bearing URI first,
+  // so the client authenticates as that account instead of the last session.
+  let uri = request?.uri ?? null
+  const accountId = request?.accountId ?? settings.activeAccountId ?? null
+
+  if (accountId) {
+    const resolved = await accountService
+      .resolveLaunchUri({ uri, accountId })
+      .catch((error) => {
+        logger.warn(`Launching as an account failed, using the plain URI: ${String(error)}`)
+        return null
+      })
+
+    if (resolved) uri = resolved
+  }
+
+  return run({ launch: true, rawUri: uri, accountId })
 }
 
 export async function forceReinstall(): Promise<BootstrapperResult> {

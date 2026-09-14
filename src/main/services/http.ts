@@ -29,16 +29,40 @@ function requestSignal(timeoutMs: number, signal?: AbortSignal): AbortSignal {
   return signal ? AbortSignal.any([timeout, signal]) : timeout
 }
 
-async function request(url: string, options: RequestOptions = {}): Promise<Response> {
+export interface PostOptions extends RequestOptions {
+  /** JSON body, serialised for you. */
+  body?: unknown
+  method?: 'POST' | 'PATCH' | 'PUT' | 'DELETE'
+}
+
+/**
+ * One HTTP attempt chain. Exported so callers that need response headers or a
+ * non-GET verb (Roblox's CSRF handshake, the authentication-ticket call) can
+ * use the same retry/backoff behaviour as everything else.
+ */
+export async function httpRequest(url: string, options: PostOptions = {}): Promise<Response> {
   const { timeoutMs = DEFAULT_TIMEOUT, retries = 2 } = options
   let lastError: unknown = null
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     try {
       const response = await fetch(url, {
+        method: options.method ?? 'GET',
         signal: requestSignal(timeoutMs, options.signal),
         redirect: 'follow',
-        headers: { 'User-Agent': USER_AGENT, ...options.headers }
+        body:
+          options.body === undefined
+            ? undefined
+            : typeof options.body === 'string'
+              ? options.body
+              : JSON.stringify(options.body),
+        headers: {
+          'User-Agent': USER_AGENT,
+          ...(options.body === undefined || typeof options.body === 'string'
+            ? {}
+            : { 'Content-Type': 'application/json' }),
+          ...options.headers
+        }
       })
 
       if (!response.ok) {
@@ -47,10 +71,16 @@ async function request(url: string, options: RequestOptions = {}): Promise<Respo
           throw new HttpError(
             `HTTP ${response.status} ${response.statusText}`,
             response.status,
-            url
+            url,
+            response.headers
           )
         }
-        throw new HttpError(`HTTP ${response.status} ${response.statusText}`, response.status, url)
+        throw new HttpError(
+          `HTTP ${response.status} ${response.statusText}`,
+          response.status,
+          url,
+          response.headers
+        )
       }
 
       return response
@@ -69,15 +99,32 @@ async function request(url: string, options: RequestOptions = {}): Promise<Respo
   throw lastError instanceof Error ? lastError : new Error(`Request failed: ${url}`)
 }
 
+/** Internal alias kept so existing call sites read as before. */
+const request = httpRequest
+
 export class HttpError extends Error {
   constructor(
     message: string,
     public readonly status: number,
-    public readonly url: string
+    public readonly url: string,
+    /** Response headers, so callers can read e.g. x-csrf-token. */
+    public readonly headers: Headers | null = null
   ) {
     super(message)
     this.name = 'HttpError'
   }
+}
+
+/** Sends a JSON body and parses the JSON response. */
+export async function postJson<T>(
+  url: string,
+  body: unknown,
+  options: PostOptions = {}
+): Promise<T> {
+  const response = await httpRequest(url, { ...options, method: 'POST', body: body ?? {} })
+  const text = await response.text()
+  if (text.trim().length === 0) return {} as T
+  return JSON.parse(text) as T
 }
 
 export async function getText(url: string, options?: RequestOptions): Promise<string> {

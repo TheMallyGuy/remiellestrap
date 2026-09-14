@@ -6,15 +6,18 @@ import { isInside } from '../utils/fs'
 import { createLogger } from '../utils/logger'
 
 /**
- * Custom `app://` protocol used to serve cached Safebooru artwork to the
- * renderer.
+ * Custom `app://` protocol used to serve local files to the renderer: cached
+ * Safebooru artwork, the user's chosen backdrop, and any font they supplied.
  *
- * Serving cache files over a dedicated scheme rather than `file://` means the
- * Content-Security-Policy never has to allow `file:` in `img-src`, and the
- * renderer can only ever reach the art cache directory — path traversal in a
- * URL cannot escape it.
+ * Serving these over a dedicated scheme rather than `file://` means the
+ * Content-Security-Policy never has to allow `file:` in `img-src` or
+ * `font-src`, and the renderer can only ever reach the directories listed in
+ * `HOSTS` — path traversal in a URL cannot escape them.
  *
- * URL shape: `app://art/<fileName>`
+ * URL shapes:
+ *   app://art/<fileName>     cached artwork
+ *   app://media/<fileName>   the active background image
+ *   app://font/<fileName>    a font file the user supplied
  */
 
 const logger = createLogger('Protocol')
@@ -23,7 +26,9 @@ export const APP_SCHEME = 'app'
 
 /** Host segments that map to a directory on disk. */
 const HOSTS: Record<string, () => string> = {
-  art: () => paths.artCache
+  art: () => paths.artCache,
+  media: () => paths.backgrounds,
+  font: () => paths.userFonts
 }
 
 const MIME_TYPES: Record<string, string> = {
@@ -33,7 +38,11 @@ const MIME_TYPES: Record<string, string> = {
   '.gif': 'image/gif',
   '.webp': 'image/webp',
   '.avif': 'image/avif',
-  '.bmp': 'image/bmp'
+  '.bmp': 'image/bmp',
+  '.ttf': 'font/ttf',
+  '.otf': 'font/otf',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2'
 }
 
 /**
@@ -59,6 +68,16 @@ export function registerSchemes(): void {
 /** Builds an `app://` URL for a file inside the art cache. */
 export function artUrl(fileName: string): string {
   return `${APP_SCHEME}://art/${encodeURIComponent(fileName)}`
+}
+
+/** Builds an `app://` URL for the active background image. */
+export function backgroundUrl(fileName: string): string {
+  return `${APP_SCHEME}://media/${encodeURIComponent(fileName)}`
+}
+
+/** Builds an `app://` URL for a user-supplied font file. */
+export function fontUrl(fileName: string): string {
+  return `${APP_SCHEME}://font/${encodeURIComponent(fileName)}`
 }
 
 /**

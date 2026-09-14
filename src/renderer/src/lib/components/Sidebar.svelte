@@ -17,6 +17,18 @@
   const ITEMS: NavItem[] = [
     { id: 'home', label: 'Home', hint: 'Launch Roblox and see what you last played', icon: 'home' },
     {
+      id: 'accounts',
+      label: 'Accounts',
+      hint: 'Stored logins, presence and one-click joins',
+      icon: 'user'
+    },
+    {
+      id: 'servers',
+      label: 'Servers',
+      hint: 'Region preference and the public server browser',
+      icon: 'globe'
+    },
+    {
       id: 'appearance',
       label: 'Appearance',
       hint: 'Theme, accent and the Remielle artwork',
@@ -37,9 +49,15 @@
       icon: 'plug'
     },
     {
+      id: 'utilities',
+      label: 'Utilities',
+      hint: 'Cleaner, logs, client settings, tweaks and backups',
+      icon: 'wrench'
+    },
+    {
       id: 'installation',
       label: 'Installation',
-      hint: 'Channel, install location and repair',
+      hint: 'Channel, versions, install location and repair',
       icon: 'download'
     },
     { id: 'about', label: 'About', hint: 'Version, credits and licences', icon: 'info' }
@@ -51,7 +69,7 @@
 </script>
 
 <nav
-  class="flex w-[188px] shrink-0 flex-col border-r border-ivory-200/6 bg-ink-950/40"
+  class="nav-rail flex w-[188px] shrink-0 flex-col border-r border-ivory-200/6 bg-ink-950/40"
   aria-label="Primary"
 >
   <ul class="flex-1 space-y-0.5 overflow-y-auto p-2.5">
@@ -80,7 +98,7 @@
             <Icon name={item.icon} size={15} />
           </span>
 
-          <span class="flex-1 truncate font-medium">{item.label}</span>
+          <span class="nav-label flex-1 truncate font-medium">{item.label}</span>
 
           {#if item.id === 'home' && activity.value.inGame}
             <span
@@ -96,7 +114,7 @@
     {/each}
   </ul>
 
-  <div class="p-2.5 pt-0">
+  <div class="nav-art p-2.5 pt-0">
     <ArtSlot
       slot="sidebar"
       class="aspect-[3/4] w-full"
