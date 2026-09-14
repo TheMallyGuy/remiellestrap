@@ -1,5 +1,10 @@
 <script lang="ts">
-  import type { LaunchMode, ProcessPriority } from '@shared/settings'
+  import type { AllowlistSeverity, LaunchMode, ProcessPriority } from '@shared/settings'
+  import { SUPPORTED_LANGUAGES } from '@shared/settings'
+  import { api } from '../ipc'
+  import { accounts } from '../stores/accounts.svelte'
+  import { pushToast } from '../stores/toasts.svelte'
+  import { languageOptions } from '../i18n'
   import { settings, updateSettings } from '../stores/settings.svelte'
   import PageHeader from '../components/PageHeader.svelte'
   import Section from '../components/Section.svelte'
@@ -42,6 +47,57 @@
   ]
 
   let argumentsDraft = $state<string | null>(null)
+  let affinityDraft = $state<string | null>(null)
+  let savingAffinity = $state(false)
+
+  const affinityValue = $derived(affinityDraft ?? settings.value.cpuAffinity)
+
+  /** Parses "0-3,6" into core numbers, or null for "all cores". */
+  function parseAffinity(text: string): number[] | null {
+    const trimmed = text.trim()
+    if (trimmed.length === 0) return null
+
+    const cores: number[] = []
+
+    for (const part of trimmed.split(',')) {
+      const range = /^(\d{1,2})\s*-\s*(\d{1,2})$/.exec(part.trim())
+      if (range) {
+        const from = Number.parseInt(range[1], 10)
+        const to = Number.parseInt(range[2], 10)
+        for (let core = Math.min(from, to); core <= Math.max(from, to); core += 1) cores.push(core)
+        continue
+      }
+
+      if (/^\d{1,2}$/.test(part.trim())) cores.push(Number.parseInt(part.trim(), 10))
+    }
+
+    return cores.length > 0 ? [...new Set(cores)].sort((a, b) => a - b) : null
+  }
+
+  async function commitAffinity(): Promise<void> {
+    if (affinityDraft === null) return
+
+    const next = affinityDraft.trim()
+    affinityDraft = null
+
+    if (next === settings.value.cpuAffinity) return
+
+    void updateSettings({ cpuAffinity: next })
+
+    const affinity = parseAffinity(next)
+    if (!affinity) return
+
+    savingAffinity = true
+    try {
+      await api.tweaks.apply({ affinity })
+      pushToast({ kind: 'success', title: 'Affinity applied to the running client' })
+    } catch {
+      // The running client may simply not exist yet; the launch path applies it.
+      pushToast({ kind: 'info', title: 'Saved — it will be applied at the next launch' })
+    } finally {
+      savingAffinity = false
+    }
+  }
 
   const argumentsValue = $derived(argumentsDraft ?? settings.value.launchArguments)
 
@@ -227,5 +283,185 @@
         if (event.key === 'Enter') event.currentTarget.blur()
       }}
     />
+  </SettingRow>
+</Section>
+
+<div class="h-5"></div>
+
+<Section
+  title="Accounts"
+  description="Which account a launch signs in as, and how that sign-in is performed."
+>
+  <SettingRow
+    title="Launch account"
+    description="Overrides the account chosen on the Accounts page for the next launch only."
+  >
+    <Select
+      value={settings.value.activeAccountId ?? ''}
+      options={[
+        { value: '', label: 'Not signed in' },
+        ...accounts.list.map((account) => ({ value: account.id, label: account.displayName }))
+      ]}
+      onchange={(value) => void updateSettings({ activeAccountId: value || null })}
+    />
+  </SettingRow>
+
+  <SettingRow
+    title="Sign-in method"
+    description="A ticket is what Roblox's own launcher uses and always signs the right account in. Plain launch lets the client use whichever session it still has."
+  >
+    <Select
+      value={settings.value.accountLaunchStrategy}
+      options={[
+        { value: 'ticket', label: 'Request a ticket (recommended)' },
+        { value: 'plain', label: 'Plain launch' }
+      ]}
+      onchange={(value) =>
+        void updateSettings({
+          accountLaunchStrategy: value as typeof settings.value.accountLaunchStrategy
+        })}
+    />
+  </SettingRow>
+
+  <SettingRow
+    title="Refresh presence in the background"
+    description={`Every ${settings.value.accountRefreshMinutes} minutes while the launcher is open.`}
+  >
+    <Switch
+      checked={settings.value.accountBackgroundRefresh}
+      onchange={(value) => void updateSettings({ accountBackgroundRefresh: value })}
+    />
+  </SettingRow>
+
+  <SettingRow title="Refresh interval">
+    <Select
+      value={String(settings.value.accountRefreshMinutes)}
+      options={[1, 5, 15, 30, 60].map((minutes) => ({
+        value: String(minutes),
+        label: `${minutes} minute${minutes === 1 ? '' : 's'}`
+      }))}
+      onchange={(value) => void updateSettings({ accountRefreshMinutes: Number(value) })}
+    />
+  </SettingRow>
+</Section>
+
+<div class="h-5"></div>
+
+<Section
+  title="Process"
+  description="Applied to the client as it starts. Everything here is reversible and none of it changes files on disk."
+>
+  <SettingRow
+    title="CPU affinity"
+    description="Which cores the client may use, e.g. 0-3 or 0-3,6. Empty means every core."
+  >
+    <div class="flex items-center gap-2">
+      <input
+        class="field w-28 py-1.5 font-mono text-xs"
+        placeholder="all cores"
+        value={affinityValue}
+        oninput={(event) => (affinityDraft = event.currentTarget.value)}
+        onblur={() => void commitAffinity()}
+        onkeydown={(event) => {
+          if (event.key === 'Enter') event.currentTarget.blur()
+        }}
+      />
+      {#if savingAffinity}
+        <span class="text-2xs text-ivory-500">applying…</span>
+      {/if}
+    </div>
+  </SettingRow>
+
+  <SettingRow
+    title="Multi-instance launching"
+    description="Lets a second client start while one is already running. RemielleStrap holds the singleton objects Roblox checks, and releases them once every client has exited."
+    warning={process.platform === 'win32' ? undefined : 'This is a Windows-only feature.'}
+  >
+    <Switch
+      checked={settings.value.multiInstanceLaunching}
+      onchange={(value) => void updateSettings({ multiInstanceLaunching: value })}
+    />
+  </SettingRow>
+
+  <SettingRow
+    title="Capture features"
+    description="Turns off Roblox's screenshot and video capture entry points through engine flags. Reversible: switch it back off and they return."
+  >
+    <Switch
+      checked={settings.value.disableCaptureFeatures}
+      onchange={(value) => void updateSettings({ disableCaptureFeatures: value })}
+    />
+  </SettingRow>
+
+  <SettingRow
+    title="Voice chat capability"
+    description="Keeps the voice-chat engine flags enabled regardless of the selected FastFlag profile."
+  >
+    <Switch
+      checked={settings.value.enableVoiceChat}
+      onchange={(value) => void updateSettings({ enableVoiceChat: value })}
+    />
+  </SettingRow>
+</Section>
+
+<div class="h-5"></div>
+
+<Section
+  title="Studio"
+  description="Whether the same flags and settings are written for Roblox Studio as well as the player."
+>
+  <SettingRow
+    title="Apply settings to Studio"
+    description="Writes AppSettings.xml for the Studio install too. Harmless, and it means Studio and the player agree."
+  >
+    <Switch
+      checked={settings.value.applySettingsToStudio}
+      onchange={(value) => void updateSettings({ applySettingsToStudio: value })}
+    />
+  </SettingRow>
+</Section>
+
+<div class="h-5"></div>
+
+<Section
+  title="Safety"
+  description="How strict the launcher is about FastFlags that are not on the allowlist."
+>
+  <SettingRow
+    title="Unknown flag policy"
+    description="A warn keeps the flag and tells you; a block refuses to apply the profile."
+  >
+    <Select
+      value={settings.value.flagAllowlistSeverity}
+      options={[
+        { value: 'off', label: 'Apply anything' },
+        { value: 'warn', label: 'Warn about unknown flags' },
+        { value: 'block', label: 'Block unknown flags' }
+      ]}
+      onchange={(value) =>
+        void updateSettings({ flagAllowlistSeverity: value as AllowlistSeverity })}
+    />
+  </SettingRow>
+</Section>
+
+<div class="h-5"></div>
+
+<Section
+  title="Language"
+  description="The app's own interface language. Untranslated strings stay in English."
+>
+  <SettingRow title="Interface language">
+    <Select
+      value={settings.value.language}
+      options={languageOptions()}
+      onchange={(value) => void updateSettings({ language: value })}
+    />
+  </SettingRow>
+
+  <SettingRow
+    title="Available translations"
+    description={`${SUPPORTED_LANGUAGES.length} languages are listed; dictionaries can be added in src/renderer/src/lib/i18n.`}
+  >
+    <span class="text-2xs text-ivory-500">scaffolded</span>
   </SettingRow>
 </Section>

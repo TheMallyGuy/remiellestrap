@@ -213,6 +213,56 @@ export function parseExtraArguments(input: string): string[] {
   return matches.map((token) => token.replace(/^"|"$/g, '')).filter((token) => token.length > 0)
 }
 
+/**
+ * Builds the launch URI the client is handed when it should authenticate as a
+ * specific account.
+ *
+ * `ticket` is the `AuthenticationTicket` from Roblox's place launcher and
+ * travels in the `gameinfo` field — the client treats that field as its
+ * authentication ticket. When `placeId` is null the URI asks the client to open
+ * its own app UI signed in as that account instead of joining a place.
+ *
+ * Every value is percent-encoded and the result is checked against
+ * `sanitizeLaunchUri`, so a malformed ticket can never produce a URI we would
+ * later refuse to launch.
+ */
+export function buildTicketUri(
+  ticket: string | null,
+  placeId: string | null,
+  gameInstanceId?: string | null,
+  accessCode?: string | null,
+  locales: { robloxLocale: string; gameLocale: string } = {
+    robloxLocale: 'en_us',
+    gameLocale: 'en_us'
+  }
+): string {
+  const pairs: string[] = ['roblox-player:1']
+
+  if (!placeId) {
+    pairs.push('launchmode:app')
+  } else {
+    const launcherUrl = new URL('https://assetgame.roblox.com/game/PlaceLauncher.ashx')
+    launcherUrl.searchParams.set('request', gameInstanceId ? 'RequestGameJob' : 'RequestGame')
+    launcherUrl.searchParams.set('browserTrackerId', '0')
+    launcherUrl.searchParams.set('placeId', placeId)
+    if (gameInstanceId) launcherUrl.searchParams.set('gameId', gameInstanceId)
+    if (accessCode) launcherUrl.searchParams.set('linkCode', accessCode)
+    launcherUrl.searchParams.set('isPlayTogetherGame', 'false')
+
+    pairs.push('launchmode:play')
+    pairs.push(`placelauncherurl:${encodeURIComponent(launcherUrl.toString())}`)
+    if (gameInstanceId) pairs.push(`gameId:${encodeURIComponent(gameInstanceId)}`)
+  }
+
+  if (ticket) pairs.push(`gameinfo:${encodeURIComponent(ticket)}`)
+  pairs.push(`launchtime:${Date.now()}`)
+  pairs.push(`robloxLocale:${encodeURIComponent(locales.robloxLocale)}`)
+  pairs.push(`gameLocale:${encodeURIComponent(locales.gameLocale)}`)
+
+  const uri = pairs.join('+')
+  return sanitizeLaunchUri(uri) ?? uri
+}
+
 /** Builds a roblox-player URI for rejoining a specific place/instance. */
 export function buildJoinUri(placeId: string, gameInstanceId?: string | null): string {
   const launcherUrl = new URL('https://assetgame.roblox.com/game/PlaceLauncher.ashx')

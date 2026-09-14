@@ -48,8 +48,9 @@
   --color-caution: #d9b169;
   --color-negative: #d98080;
 
-  --font-sans:
+  --font-sans-default:
     'Inter var', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-sans: var(--font-sans-default);
   --font-display: 'Cormorant Garamond', 'Iowan Old Style', Georgia, 'Times New Roman', serif;
   --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', 'Cascadia Mono', Consolas, monospace;
 
@@ -331,6 +332,109 @@
     --color-gold-500: #b95283;
     --color-gold-600: #d2769f;
     --color-gold-700: #ecabc6;
+  }
+
+  /*
+   * Extra themes
+   * ------------
+   * Each one remaps the full ramp rather than just flipping a flag, because a
+   * theme is a mood: Prism Night is the same ink with the aurora turned up,
+   * Ivory Cathedral is daylight through glass, Gold Ember is warm and low.
+   * They are classes on <html>, applied by App.svelte.
+   */
+
+  :root.theme-prism-night {
+    --color-ink-950: #05050a;
+    --color-ink-900: #08080f;
+    --color-ink-850: #0c0c15;
+    --color-ink-800: #11111c;
+    --color-ink-750: #161624;
+    --color-ink-700: #1d1d2e;
+    --color-ink-600: #262639;
+    --color-ink-500: #34344b;
+
+    --color-prism-rose: #f0a6cd;
+    --color-prism-violet: #a493ee;
+    --color-prism-cyan: #86d8e8;
+    --color-prism-mint: #9fe3c1;
+  }
+
+  :root.theme-ivory-cathedral {
+    --color-ink-950: #f6f3ec;
+    --color-ink-900: #fbf9f4;
+    --color-ink-850: #f3efe6;
+    --color-ink-800: #ffffff;
+    --color-ink-750: #efeade;
+    --color-ink-700: #e5dfd0;
+    --color-ink-600: #d6cfbd;
+    --color-ink-500: #bfb7a3;
+    --color-ink-400: #a39b87;
+
+    --color-ivory-50: #191712;
+    --color-ivory-100: #23201a;
+    --color-ivory-200: #3b362d;
+    --color-ivory-300: #565044;
+    --color-ivory-400: #6f6858;
+    --color-ivory-500: #8b8371;
+    --color-ivory-600: #a49c88;
+
+    --color-gold-200: #6b5116;
+    --color-gold-300: #84661d;
+    --color-gold-400: #9c7a28;
+    --color-gold-500: #b08f3c;
+    --color-gold-600: #c8a866;
+    --color-gold-700: #e2cb99;
+
+    --color-positive: #2f7a4a;
+    --color-caution: #8a6414;
+    --color-negative: #a63f3f;
+  }
+
+  :root.theme-gold-ember {
+    --color-ink-950: #0b0704;
+    --color-ink-900: #100b06;
+    --color-ink-850: #171009;
+    --color-ink-800: #1d150c;
+    --color-ink-750: #241a10;
+    --color-ink-700: #2c2013;
+    --color-ink-600: #3a2b1a;
+    --color-ink-500: #4b3823;
+
+    --color-ivory-50: #fdf6e9;
+    --color-ivory-100: #f7ecd7;
+    --color-ivory-200: #e9d9bd;
+    --color-ivory-300: #d3bf9c;
+    --color-ivory-400: #b09a74;
+    --color-ivory-500: #8d7a5c;
+    --color-ivory-600: #62523c;
+
+    --color-gold-200: #f6dfb0;
+    --color-gold-300: #ecc886;
+    --color-gold-400: #dcaa54;
+    --color-gold-500: #c48f36;
+    --color-gold-600: #9d6f25;
+  }
+
+  /*
+   * Sidebar display modes.
+   * `.sidebar-icons` collapses the rail to its glyphs; the labels stay in the
+   * DOM for screen readers, they are only visually hidden.
+   */
+  :root[data-sidebar='icons'] .nav-rail {
+    width: 3.25rem;
+  }
+
+  :root[data-sidebar='icons'] .nav-label,
+  :root[data-sidebar='compact'] .nav-hint {
+    display: none;
+  }
+
+  :root[data-sidebar='compact'] .nav-rail {
+    width: 9rem;
+  }
+
+  :root[data-sidebar='icons'] .nav-art {
+    display: none;
   }
 }
 

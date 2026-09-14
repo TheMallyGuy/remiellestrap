@@ -7,7 +7,15 @@
     rejoin
   } from '../stores/activity.svelte'
   import { bootstrapper, checkForUpdates, install, launch } from '../stores/bootstrapper.svelte'
-  import { settings } from '../stores/settings.svelte'
+  import { settings, updateSettings } from '../stores/settings.svelte'
+  import { accounts, setActiveAccount } from '../stores/accounts.svelte'
+  import { playtime } from '../stores/playtime.svelte'
+  import { goTo } from '../stores/navigation.svelte'
+  import { pushToast } from '../stores/toasts.svelte'
+  import { api, errorMessage } from '../ipc'
+  import { REGION_CATALOG, regionById } from '@shared/catalog'
+  import Select from '../components/Select.svelte'
+  import SettingRow from '../components/SettingRow.svelte'
   import { formatDuration, formatRelative, placeLabel, shortVersion } from '../utils/format'
   import ArtSlot from '../components/ArtSlot.svelte'
   import EmptyState from '../components/EmptyState.svelte'
@@ -38,6 +46,57 @@
     if (needsInstall) void install(false)
     else void launch({ mode: settings.value.preferredLaunchMode })
   }
+
+  /* ------------------------------------------------- Quick play and region */
+
+  let quickPlace = $state('')
+  let joining = $state(false)
+
+  const activeRegion = $derived(regionById(settings.value.preferredRegion))
+
+  /** Jump straight into the best server in the preferred region. */
+  async function joinInRegion(): Promise<void> {
+    const target =
+      quickPlace.trim() || current.activity?.placeId || activity.state.lastActivity?.placeId
+    if (!target) {
+      pushToast({
+        kind: 'warning',
+        title: 'Which game?',
+        message: 'Enter a place id, or play something first.'
+      })
+      return
+    }
+
+    joining = true
+
+    try {
+      const result = await api.servers.join({
+        placeId: target,
+        region:
+          settings.value.preferredRegion === 'any' ? undefined : settings.value.preferredRegion,
+        size: settings.value.serverSizePreference,
+        sort: settings.value.autoSortServers ? undefined : 'players'
+      })
+
+      pushToast(
+        result.launched
+          ? { kind: 'success', title: 'Joining a server', message: result.message }
+          : { kind: 'error', title: 'Could not join', message: result.message }
+      )
+    } catch (error) {
+      pushToast({ kind: 'error', title: 'Could not join', message: errorMessage(error) })
+    } finally {
+      joining = false
+    }
+  }
+
+  async function switchAccount(id: string): Promise<void> {
+    await setActiveAccount(id || null)
+  }
+
+  const topGames = $derived(playtime.topGames)
+
+  const REGION_OPTIONS = REGION_CATALOG.map((region) => ({ value: region.id, label: region.label }))
 </script>
 
 <div class="mx-auto max-w-3xl">
@@ -257,4 +316,109 @@
       </ul>
     {/if}
   </Section>
+
+  <div class="h-5"></div>
+
+  <Section
+    title="Quick play"
+    description="Skip the website. Join the best server in your preferred region for any place id, as the selected account."
+  >
+    <div class="flex flex-wrap items-center gap-2 py-3">
+      <input class="field w-44 py-1.5 text-xs" placeholder="Place id" bind:value={quickPlace} />
+
+      <button
+        type="button"
+        class="btn-primary gap-1.5"
+        disabled={joining}
+        onclick={() => void joinInRegion()}
+      >
+        <Icon name={joining ? 'spinner' : 'map-pin'} size={13} />
+        Join a {activeRegion.label} server
+      </button>
+
+      <button type="button" class="btn-ghost gap-1.5" onclick={() => goTo('servers')}>
+        <Icon name="globe" size={13} />
+        Browse servers
+      </button>
+    </div>
+
+    <SettingRow
+      title="Preferred region"
+      description={`${activeRegion.hint ?? ''} Used here, by the tray menu and by region-aware auto-rejoin.`}
+    >
+      <Select
+        value={settings.value.preferredRegion}
+        options={REGION_OPTIONS}
+        onchange={(value) => void updateSettings({ preferredRegion: value })}
+      />
+    </SettingRow>
+
+    <SettingRow
+      title="Launching as"
+      description={accounts.active
+        ? `${accounts.active.displayName} · ${accounts.active.valid ? 'session valid' : 'session expired'}`
+        : 'No stored account — the client will use whatever session it has.'}
+    >
+      <div class="flex items-center gap-2">
+        <Select
+          value={accounts.active?.id ?? ''}
+          options={[
+            { value: '', label: 'Not signed in' },
+            ...accounts.list.map((account) => ({ value: account.id, label: account.displayName }))
+          ]}
+          onchange={(value) => void switchAccount(value)}
+        />
+        <button type="button" class="btn-ghost px-2 py-1 text-2xs" onclick={() => goTo('accounts')}>
+          Manage
+        </button>
+      </div>
+    </SettingRow>
+  </Section>
+
+  {#if playtime.value.sessions > 0}
+    <div class="h-5"></div>
+
+    <Section
+      title="Playtime"
+      description="Lifetime totals for this machine, banked as each session ends."
+    >
+      <div class="grid grid-cols-3 gap-3 py-3">
+        <div class="surface-inset px-3 py-2.5">
+          <p class="text-2xs uppercase tracking-[0.14em] text-ivory-600">Total</p>
+          <p class="mt-1 text-sm text-ivory-100">{formatDuration(playtime.value.totalMs)}</p>
+        </div>
+
+        <div class="surface-inset px-3 py-2.5">
+          <p class="text-2xs uppercase tracking-[0.14em] text-ivory-600">Sessions</p>
+          <p class="mt-1 text-sm text-ivory-100">{playtime.value.sessions}</p>
+        </div>
+
+        <div class="surface-inset px-3 py-2.5">
+          <p class="text-2xs uppercase tracking-[0.14em] text-ivory-600">Games</p>
+          <p class="mt-1 text-sm text-ivory-100">{playtime.value.games.length}</p>
+        </div>
+      </div>
+
+      {#if topGames.length > 0}
+        <ul class="space-y-1.5 pb-3">
+          {#each topGames as game (game.placeId)}
+            <li class="flex items-center gap-2.5 text-2xs">
+              {#if game.thumbnailUrl}
+                <img
+                  src={game.thumbnailUrl}
+                  alt=""
+                  class="h-7 w-10 rounded object-cover"
+                  loading="lazy"
+                />
+              {/if}
+              <span class="min-w-0 flex-1 truncate text-ivory-300">
+                {game.name || placeLabel(null, game.placeId)}
+              </span>
+              <span class="text-ivory-500">{formatDuration(game.totalMs)}</span>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    </Section>
+  {/if}
 </div>

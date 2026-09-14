@@ -110,6 +110,46 @@ export function acquireSingleInstanceLock(): boolean {
   return true
 }
 
+/* -------------------------------------------------- Shortcut arguments */
+
+/**
+ * A game shortcut's payload: what the `.lnk` / `.desktop` / `.command` file
+ * carries instead of a full Roblox URI.
+ *
+ * Storing a resolved URI in a shortcut was the obvious approach and the wrong
+ * one: authentication tickets expire, so the shortcut would work the day it was
+ * created and fail a week later. The arguments below are re-resolved at every
+ * launch instead, which is why they can carry an account and a region.
+ */
+export interface ShortcutArguments {
+  placeId: string
+  accountId: string | null
+  region: string | null
+}
+
+/** Reads `--remielle-*` flags out of an argv array, if any are present. */
+export function shortcutArguments(argv: readonly string[]): ShortcutArguments | null {
+  const find = (flag: string): string | null => {
+    const index = argv.indexOf(flag)
+    if (index === -1) return null
+
+    const value = argv[index + 1]
+    return typeof value === 'string' && !value.startsWith('--') ? value : null
+  }
+
+  const placeId = find('--remielle-place')
+  if (!placeId || !/^\d{1,20}$/.test(placeId)) return null
+
+  const accountId = find('--remielle-account')
+  const region = find('--remielle-region')
+
+  return {
+    placeId,
+    accountId: accountId && /^[A-Za-z0-9_-]{1,64}$/.test(accountId) ? accountId : null,
+    region: region && /^[a-z0-9-]{1,40}$/.test(region) ? region : null
+  }
+}
+
 /** macOS/Linux protocol delivery. */
 export function registerOpenUrlHandler(): void {
   app.on('open-url', (event, url) => {

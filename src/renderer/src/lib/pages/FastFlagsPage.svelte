@@ -1,14 +1,27 @@
 <script lang="ts">
-  import type { FlagProfile, FlagValue } from '@shared/models'
+  import type {
+    FlagAllowlist,
+    FlagAllowlistEntry,
+    FlagAudit,
+    FlagCleanResult,
+    FlagPreset,
+    FlagProfile,
+    FlagValue
+  } from '@shared/models'
   import { api, errorMessage } from '../ipc'
-  import { settings } from '../stores/settings.svelte'
+  import { settings, updateSettings } from '../stores/settings.svelte'
   import { pushToast } from '../stores/toasts.svelte'
   import type { ConfirmOptions, FlagRow } from '../types'
   import ConfirmDialog from '../dialogs/ConfirmDialog.svelte'
   import EmptyState from '../components/EmptyState.svelte'
+  import { formatRelative } from '../utils/format'
   import Icon from '../components/Icon.svelte'
   import PageHeader from '../components/PageHeader.svelte'
   import Section from '../components/Section.svelte'
+  import Select from '../components/Select.svelte'
+  import SettingRow from '../components/SettingRow.svelte'
+  import Switch from '../components/Switch.svelte'
+  import Tabs from '../components/Tabs.svelte'
 
   /**
    * FastFlags: named profiles of client engine flags.
@@ -44,6 +57,159 @@
   let previewOpen = $state(false)
 
   let rowCounter = 0
+
+  /* ------------------------------------------------- Allowlist, presets, clean */
+
+  type ToolTab = 'editor' | 'presets' | 'allowlist'
+
+  let tool = $state<ToolTab>('editor')
+  let allowlist = $state<FlagAllowlist | null>(null)
+  let allowlistBusy = $state(false)
+  let audit = $state<FlagAudit | null>(null)
+  let cleanResult = $state<(FlagCleanResult & { dryRun: boolean }) | null>(null)
+  let presets = $state<FlagPreset[]>([])
+  let allowFilter = $state('')
+  let allowCategory = $state('all')
+  let applyingPreset = $state<string | null>(null)
+
+  $effect(() => {
+    void loadTools()
+  })
+
+  async function loadTools(): Promise<void> {
+    presets = await api.fastflags.presets().catch(() => [])
+
+    allowlistBusy = true
+    try {
+      allowlist = await api.fastflags.allowlist(false)
+      audit = await api.fastflags.audit(selected)
+    } catch (error) {
+      pushToast({
+        kind: 'warning',
+        title: 'The allowlist is unavailable',
+        message: errorMessage(error)
+      })
+    } finally {
+      allowlistBusy = false
+    }
+  }
+
+  async function refreshAllowlist(): Promise<void> {
+    allowlistBusy = true
+    try {
+      allowlist = await api.fastflags.allowlist(true)
+      audit = await api.fastflags.audit(selected)
+      pushToast({
+        kind: 'success',
+        title: 'Allowlist refreshed',
+        message: `${allowlist.entries.length} flags, source: ${allowlist.source}`
+      })
+    } catch (error) {
+      pushToast({
+        kind: 'warning',
+        title: 'Could not refresh the allowlist',
+        message: errorMessage(error)
+      })
+    } finally {
+      allowlistBusy = false
+    }
+  }
+
+  async function applyPreset(preset: FlagPreset): Promise<void> {
+    applyingPreset = preset.id
+
+    try {
+      profiles = await api.fastflags.applyPreset({
+        presetId: preset.id,
+        profile: selected,
+        replace: false
+      })
+
+      hydrateRows()
+
+      audit = await api.fastflags.audit(selected)
+      preview = await api.fastflags.preview()
+
+      pushToast({
+        kind: 'success',
+        title: `${preset.name} applied`,
+        message: `${Object.keys(preset.flags).length} flag(s) written into ${selected}`
+      })
+    } catch (error) {
+      pushToast({
+        kind: 'error',
+        title: 'Could not apply that preset',
+        message: errorMessage(error)
+      })
+    } finally {
+      applyingPreset = null
+    }
+  }
+
+  async function cleanFlags(dryRun: boolean): Promise<void> {
+    try {
+      cleanResult = { ...(await api.fastflags.clean({ name: selected, dryRun })), dryRun }
+      audit = await api.fastflags.audit(selected)
+
+      if (!dryRun) {
+        profiles = await api.fastflags.getProfiles()
+        hydrateRows()
+        preview = await api.fastflags.preview()
+      }
+
+      pushToast({
+        kind: 'success',
+        title: dryRun ? 'Dry run complete' : 'Cleaned',
+        message: `${cleanResult.removed.length} flag(s) ${dryRun ? 'would be' : 'were'} removed, ${cleanResult.kept} kept`
+      })
+    } catch (error) {
+      pushToast({ kind: 'error', title: 'Cleaning failed', message: errorMessage(error) })
+    }
+  }
+
+  /** Adds an allowlisted flag to the profile being edited. */
+  function addFromAllowlist(entry: FlagAllowlistEntry): void {
+    if (rows.some((row) => row.key === entry.name)) {
+      pushToast({ kind: 'info', title: 'That flag is already in this profile' })
+      return
+    }
+
+    const value =
+      entry.defaultValue !== null
+        ? String(entry.defaultValue)
+        : entry.kind === 'boolean'
+          ? 'true'
+          : entry.kind === 'number'
+            ? String(entry.min ?? 1)
+            : 'text'
+
+    rowCounter += 1
+    rows = [...rows, { id: `allow-${rowCounter}`, key: entry.name, value, error: null }]
+    dirty = true
+  }
+
+  const allowCategories = $derived([
+    'all',
+    ...new Set((allowlist?.entries ?? []).map((entry) => entry.category))
+  ])
+
+  const visibleAllowlist = $derived(
+    (allowlist?.entries ?? []).filter((entry) => {
+      if (allowCategory !== 'all' && entry.category !== allowCategory) return false
+      if (allowFilter.trim().length === 0) return true
+
+      const needle = allowFilter.trim().toLowerCase()
+      return (
+        entry.name.toLowerCase().includes(needle) ||
+        entry.description.toLowerCase().includes(needle)
+      )
+    })
+  )
+
+  /** True when the edited profile already contains this flag. */
+  function hasFlag(name: string): boolean {
+    return rows.some((row) => row.key === name)
+  }
 
   const current = $derived(profiles.find((profile) => profile.name === selected) ?? null)
 
@@ -138,7 +304,7 @@
   }
 
   function validate(): boolean {
-    const seen = new Set<string>()
+    const seen: string[] = []
     let ok = true
 
     for (const row of rows) {
@@ -150,12 +316,12 @@
       } else if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
         row.error = 'Letters, digits and underscores only'
         ok = false
-      } else if (seen.has(key)) {
+      } else if (seen.includes(key)) {
         row.error = 'Duplicate flag name'
         ok = false
       } else {
         row.error = null
-        seen.add(key)
+        seen.push(key)
       }
     }
 
@@ -674,3 +840,230 @@
     confirmAction = null
   }}
 />
+
+<div class="h-5"></div>
+
+<Section
+  title="Tools"
+  description="The allowlist is what Roblox actually reads; a flag outside it is usually ignored, and sometimes worse. Presets are curated starting points built only from allowlisted flags."
+>
+  {#snippet actions()}
+    <button
+      type="button"
+      class="btn-ghost gap-1.5"
+      disabled={allowlistBusy}
+      onclick={() => void refreshAllowlist()}
+    >
+      <Icon name={allowlistBusy ? 'spinner' : 'refresh'} size={13} />
+      Refresh allowlist
+    </button>
+  {/snippet}
+
+  <Tabs
+    value={tool}
+    onchange={(next) => (tool = next as ToolTab)}
+    tabs={[
+      { id: 'editor', label: 'Editor', hint: 'Edit the selected profile' },
+      { id: 'presets', label: 'Presets', hint: 'Curated flag sets' },
+      { id: 'allowlist', label: 'Allowlist', hint: 'What the client accepts' }
+    ]}
+  />
+
+  {#if tool === 'editor'}
+    <div class="py-1">
+      <SettingRow
+        title="Flag availability"
+        description={audit
+          ? `Allowed by Roblox's own flag system: ${audit.allowed} of ${audit.total}. ${audit.unknown.length} unknown.`
+          : 'Reading the allowlist…'}
+        warning={audit && audit.unknown.length > 0
+          ? 'Unknown flags are usually ignored by the client — they are not errors, just noise.'
+          : undefined}
+      >
+        <div class="flex items-center gap-2">
+          <span class="chip">
+            {audit ? `${audit.allowed}/${audit.total}` : '—'}
+          </span>
+          <button
+            type="button"
+            class="btn-ghost px-2.5 py-1 text-2xs"
+            onclick={() => void cleanFlags(true)}
+            title="Count what a clean would remove"
+          >
+            Dry run
+          </button>
+          <button
+            type="button"
+            class="btn-secondary px-2.5 py-1 text-2xs"
+            onclick={() => void cleanFlags(false)}
+            title="Remove flags that are not on the allowlist"
+          >
+            Clean list
+          </button>
+        </div>
+      </SettingRow>
+
+      {#if audit && audit.unknown.length > 0}
+        <SettingRow title="Unknown flags" stacked>
+          <div class="flex flex-wrap gap-1">
+            {#each audit.unknown.slice(0, 40) as name (name)}
+              <span class="chip font-mono text-[0.625rem]">{name}</span>
+            {/each}
+          </div>
+        </SettingRow>
+      {/if}
+
+      {#if cleanResult}
+        <SettingRow
+          title={cleanResult.dryRun ? 'A clean would remove' : 'Last clean removed'}
+          stacked
+        >
+          <p class="text-2xs text-ivory-500">
+            {cleanResult.removed.length} flag(s), {cleanResult.kept} kept.
+            {#if cleanResult.removed.length > 0}
+              {cleanResult.removed.slice(0, 12).join(', ')}{cleanResult.removed.length > 12
+                ? '…'
+                : ''}
+            {/if}
+          </p>
+        </SettingRow>
+      {/if}
+    </div>
+  {:else if tool === 'presets'}
+    {#if presets.length === 0}
+      <div class="py-6 text-center text-xs text-ivory-500">No presets available.</div>
+    {:else}
+      <ul class="divide-y divide-ivory-200/6">
+        {#each presets as preset (preset.id)}
+          <li class="flex items-start gap-3 py-3">
+            <span class="min-w-0 flex-1">
+              <span class="flex items-center gap-1.5 text-xs text-ivory-200">
+                {preset.name}
+                <span class="chip">{preset.category}</span>
+                {#if preset.risk === 'caution' || preset.risk === 'advanced'}
+                  <span class="chip border-caution/30 text-caution/90">{preset.risk}</span>
+                {/if}
+              </span>
+              <span class="mt-0.5 block text-2xs leading-relaxed text-ivory-500"
+                >{preset.description}</span
+              >
+              <span class="mt-1 block truncate font-mono text-[0.625rem] text-ivory-600">
+                {Object.keys(preset.flags).join(', ')}
+              </span>
+            </span>
+
+            <button
+              type="button"
+              class="btn-secondary shrink-0 px-2.5 py-1 text-2xs"
+              disabled={applyingPreset !== null}
+              onclick={() => void applyPreset(preset)}
+            >
+              {applyingPreset === preset.id ? 'Applying…' : `Apply to ${selected}`}
+            </button>
+          </li>
+        {/each}
+      </ul>
+    {/if}
+  {:else}
+    <div class="flex flex-wrap items-center gap-2 py-3">
+      <input
+        class="field min-w-40 flex-1 py-1.5 text-xs"
+        placeholder="Search flags and descriptions"
+        bind:value={allowFilter}
+      />
+
+      <Select
+        value={allowCategory}
+        options={allowCategories.map((category) => ({
+          value: category,
+          label: category === 'all' ? 'All categories' : category
+        }))}
+        onchange={(value) => (allowCategory = value)}
+      />
+
+      <span class="text-2xs text-ivory-500">
+        {visibleAllowlist.length} of {allowlist?.entries.length ?? 0}
+        {#if allowlist}
+          · {allowlist.source}
+          {#if allowlist.updatedAt}· {formatRelative(allowlist.updatedAt)}{/if}
+        {/if}
+      </span>
+    </div>
+
+    <ul
+      class="max-h-[28rem] divide-y divide-ivory-200/6 overflow-y-auto border-t border-ivory-200/8"
+    >
+      {#each visibleAllowlist as entry (entry.name)}
+        {@const present = hasFlag(entry.name)}
+        <li class="flex items-start gap-3 py-2.5">
+          <span class="mt-0.5 shrink-0 {present ? 'text-positive' : 'text-ivory-600'}">
+            <Icon name={present ? 'check' : 'x'} size={13} />
+          </span>
+
+          <span class="min-w-0 flex-1">
+            <span class="flex items-center gap-1.5">
+              <span class="truncate font-mono text-[0.6875rem] text-ivory-200">{entry.name}</span>
+              <span class="chip">{entry.kind}</span>
+              {#if entry.risk !== 'safe'}
+                <span class="chip border-caution/30 text-caution/90">{entry.risk}</span>
+              {/if}
+            </span>
+            <span class="mt-0.5 block text-2xs leading-relaxed text-ivory-500"
+              >{entry.description}</span
+            >
+            {#if entry.options.length > 0}
+              <span class="mt-0.5 block font-mono text-[0.625rem] text-ivory-600">
+                {entry.options.map((option) => String(option)).join(' · ')}
+              </span>
+            {/if}
+          </span>
+
+          <button
+            type="button"
+            class="btn-ghost shrink-0 px-2.5 py-1 text-2xs"
+            disabled={present}
+            title={present ? 'Already in this profile' : 'Add to the profile being edited'}
+            onclick={() => addFromAllowlist(entry)}
+          >
+            {present ? 'added' : 'Add'}
+          </button>
+        </li>
+      {/each}
+    </ul>
+
+    <p class="py-3 text-2xs leading-relaxed text-ivory-600">
+      The allowlist is merged from a built-in set and the configured remote list ({settings.value
+        .flagAllowlistUrl}). A check means Roblox's flag system knows the name; a cross means the
+      client will most likely ignore it.
+    </p>
+  {/if}
+</Section>
+
+<div class="h-5"></div>
+
+<Section
+  title="Allowlist behaviour"
+  description="How the launcher treats a flag it does not recognise."
+>
+  <SettingRow
+    title="Update the allowlist automatically"
+    description="Re-fetch the remote list once a week."
+  >
+    <Switch
+      checked={settings.value.flagAllowlistAutoUpdate}
+      onchange={(value) => void updateSettings({ flagAllowlistAutoUpdate: value })}
+    />
+  </SettingRow>
+
+  <SettingRow
+    title="Allowlist source"
+    description="Any URL returning a flag list: an array of names, an array of objects, or a name-to-type map."
+    stacked
+  >
+    <input
+      class="field w-full py-1.5 font-mono text-2xs"
+      value={settings.value.flagAllowlistUrl}
+      onblur={(event) => void updateSettings({ flagAllowlistUrl: event.currentTarget.value })}
+    />
+  </SettingRow>
+</Section>

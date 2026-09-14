@@ -1,11 +1,31 @@
 import { dialog } from 'electron'
 import { readFile, writeFile } from 'fs/promises'
 import { join } from 'path'
-import type { FlagProfile, FlagValue, OperationResult, SaveProfileRequest } from '@shared/models'
+import type {
+  FlagAllowlist,
+  FlagAllowlistEntry,
+  FlagAudit,
+  FlagCleanResult,
+  FlagPreset,
+  FlagPresetApplyRequest,
+  FlagProfile,
+  FlagValue,
+  OperationResult,
+  SaveProfileRequest
+} from '@shared/models'
 import { DEFAULT_FLAG_PROFILE } from '@shared/settings'
+import { DISABLE_CAPTURE_FLAGS, VOICE_CHAT_FLAGS } from '@shared/catalog'
 import { createLogger } from '../utils/logger'
-import { ensureDir } from '../utils/fs'
+import { paths } from '../utils/paths'
+import { ensureDir, readJson, writeJson } from '../utils/fs'
+import { getJson } from './http'
 import { getSettings, saveSettings } from './settingsStore'
+import {
+  BUILTIN_ALLOWLIST,
+  FLAG_PRESETS,
+  parseRemoteAllowlist,
+  mergeAllowlist
+} from '../core/allowlist'
 
 /**
  * FastFlag management.
@@ -53,6 +73,7 @@ export function coerceFlagValue(value: unknown): FlagValue | null {
   if (typeof value === 'string') {
     // Roblox writes every flag as a string in ClientAppSettings.json, so keep
     // the raw text but strip control characters.
+    // eslint-disable-next-line no-control-regex -- control characters are what we strip
     return value.replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 512)
   }
   return null
@@ -85,11 +106,14 @@ export function sanitizeFlags(input: unknown): Record<string, FlagValue> {
 }
 
 function sanitizeProfileName(name: string): string {
-  return name
-    .replace(/[\u0000-\u001f\u007f]/g, '')
-    .replace(/[\\/:*?"<>|]/g, '')
-    .trim()
-    .slice(0, 64)
+  return (
+    name
+      // eslint-disable-next-line no-control-regex -- control characters are what we strip
+      .replace(/[\u0000-\u001f\u007f]/g, '')
+      .replace(/[\\/:*?"<>|]/g, '')
+      .trim()
+      .slice(0, 64)
+  )
 }
 
 function toProfiles(raw: Record<string, Record<string, unknown>>, active: string): FlagProfile[] {
@@ -289,7 +313,7 @@ export async function exportToJson(name: string): Promise<OperationResult<string
  * previously applied set of flags is cleared.
  */
 export async function applyFlags(versionDirectory: string): Promise<number> {
-  const flags = activeFlags()
+  const flags = effectiveFlags()
   const directory = join(versionDirectory, 'ClientSettings')
   await ensureDir(directory)
 
@@ -299,4 +323,225 @@ export async function applyFlags(versionDirectory: string): Promise<number> {
   const count = Object.keys(flags).length
   logger.info(`Wrote ${count} FastFlag(s) to ${file}`)
   return count
+}
+
+/* ----------------------------------------------------------- Allowlist */
+
+interface AllowlistCache {
+  entries: FlagAllowlistEntry[]
+  updatedAt: number
+  url: string
+}
+
+let allowlistCache: FlagAllowlist | null = null
+
+async function readAllowlistCache(): Promise<AllowlistCache | null> {
+  return readJson<AllowlistCache | null>(join(paths.apiCache, 'allowlist.json'), null)
+}
+
+async function writeAllowlistCache(cache: AllowlistCache): Promise<void> {
+  try {
+    await ensureDir(paths.apiCache)
+    await writeJson(join(paths.apiCache, 'allowlist.json'), cache)
+  } catch (error) {
+    logger.warn(`Could not cache the allowlist: ${String(error)}`)
+  }
+}
+
+/**
+ * The current allowlist.
+ *
+ * Precedence: a fresh remote fetch (when `refresh` is set), then the last
+ * successful remote fetch from disk, then the built-in snapshot. The result is
+ * always a superset that includes every built-in entry, so the UI can never be
+ * left with fewer known flags than the app shipped with.
+ */
+export async function allowlist(options: { refresh?: boolean } = {}): Promise<FlagAllowlist> {
+  const settings = getSettings()
+  const url = settings.flagAllowlistUrl
+
+  if (options.refresh && url) {
+    try {
+      const payload = await getJson<unknown>(url, { retries: 1, timeoutMs: 20_000 })
+      const parsed = parseRemoteAllowlist(payload)
+
+      if (parsed.length > 0) {
+        const entries = mergeAllowlist(parsed)
+        const updatedAt = Date.now()
+        await writeAllowlistCache({ entries: parsed, updatedAt, url })
+        await saveSettings({ lastAllowlistUpdate: updatedAt })
+        allowlistCache = { entries, updatedAt, source: 'remote', url, error: null }
+        logger.info(`Allowlist refreshed from ${url} (${parsed.length} remote entries)`)
+        return allowlistCache
+      }
+
+      logger.warn('The allowlist source did not contain any recognisable flags')
+      allowlistCache = {
+        entries: mergeAllowlist([]),
+        updatedAt: Date.now(),
+        source: 'builtin',
+        url,
+        error: 'The remote allowlist did not contain any recognisable flags'
+      }
+      return allowlistCache
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      logger.warn(`Allowlist refresh failed: ${message}`)
+
+      const cached = await readAllowlistCache()
+      const entries = mergeAllowlist(cached?.entries ?? [])
+      allowlistCache = {
+        entries,
+        updatedAt: cached?.updatedAt ?? 0,
+        source: cached ? 'cache' : 'builtin',
+        url,
+        error: message
+      }
+      return allowlistCache
+    }
+  }
+
+  if (allowlistCache) return allowlistCache
+
+  const cached = await readAllowlistCache()
+  allowlistCache = {
+    entries: mergeAllowlist(cached?.entries ?? []),
+    updatedAt: cached?.updatedAt ?? 0,
+    source: cached ? 'cache' : 'builtin',
+    url,
+    error: null
+  }
+
+  return allowlistCache
+}
+
+function allowlistMap(entries: FlagAllowlistEntry[]): Map<string, FlagAllowlistEntry> {
+  return new Map(entries.map((entry) => [entry.name, entry]))
+}
+
+/** Compares a profile against the allowlist and reports what is unknown. */
+export async function audit(name?: string): Promise<FlagAudit> {
+  const settings = getSettings()
+  const profileName = name ?? settings.activeFlagProfile
+  const flags = sanitizeFlags(settings.flagProfiles[profileName] ?? {})
+  const list = await allowlist()
+  const known = allowlistMap(list.entries)
+
+  const unknown = Object.keys(flags).filter((flag) => !known.has(flag))
+
+  return {
+    profile: profileName,
+    total: Object.keys(flags).length,
+    allowed: Object.keys(flags).length - unknown.length,
+    unknown,
+    severity: settings.flagAllowlistSeverity
+  }
+}
+
+/**
+ * Removes every non-allowlisted flag from a profile. With `dryRun` nothing is
+ * written — the UI uses that to show what would go before asking.
+ */
+export async function clean(
+  options: { name?: string; dryRun?: boolean } = {}
+): Promise<FlagCleanResult> {
+  const settings = getSettings()
+  const profileName = options.name ?? settings.activeFlagProfile
+  const flags = settings.flagProfiles[profileName]
+  if (!flags) throw new Error(`No profile named '${profileName}'`)
+
+  const list = await allowlist()
+  const known = allowlistMap(list.entries)
+
+  const kept: Record<string, FlagValue> = {}
+  const removed: string[] = []
+
+  for (const [name, value] of Object.entries(sanitizeFlags(flags))) {
+    if (known.has(name)) kept[name] = value
+    else removed.push(name)
+  }
+
+  if (removed.length > 0 && !options.dryRun) {
+    const profiles = { ...settings.flagProfiles, [profileName]: kept }
+    await saveSettings({ flagProfiles: profiles })
+    logger.info(`Cleaned ${removed.length} non-allowlisted flag(s) from '${profileName}'`)
+  }
+
+  return { profile: profileName, removed, kept: Object.keys(kept).length }
+}
+
+/** The presets the UI can offer, each with its flags resolved. */
+export function presets(): FlagPreset[] {
+  return FLAG_PRESETS.map((preset) => ({ ...preset, flags: { ...preset.flags } }))
+}
+
+export function presetById(id: string): FlagPreset | null {
+  return FLAG_PRESETS.find((preset) => preset.id === id) ?? null
+}
+
+/**
+ * Applies a preset to a profile. `replace` removes only the flags the preset
+ * itself owns (never the user's other tweaks) before writing its values.
+ */
+export async function applyPreset(request: FlagPresetApplyRequest): Promise<FlagProfile[]> {
+  const preset = presetById(request.presetId)
+  if (!preset) throw new Error(`Unknown preset '${request.presetId}'`)
+
+  const settings = getSettings()
+  const profileName = request.profile ?? settings.activeFlagProfile
+  const current = sanitizeFlags(settings.flagProfiles[profileName] ?? {})
+
+  const next: Record<string, FlagValue> = { ...current }
+
+  if (request.replace) {
+    for (const name of Object.keys(preset.flags)) delete next[name]
+  }
+
+  Object.assign(next, preset.flags)
+
+  const profiles = { ...settings.flagProfiles, [profileName]: next }
+  const updated = await saveSettings({ flagProfiles: profiles })
+  logger.info(`Applied preset '${preset.name}' to '${profileName}'`)
+
+  return Object.entries(updated.flagProfiles).map(([name, flags]) => {
+    const sanitized = sanitizeFlags(flags)
+    return {
+      name,
+      flags: sanitized,
+      isActive: name === updated.activeFlagProfile,
+      flagCount: Object.keys(sanitized).length
+    }
+  })
+}
+
+/**
+ * Flags contributed by settings toggles rather than by the user's profile.
+ *
+ * These are merged last, so turning a toggle off really does remove the flag
+ * even if it is also present in the profile by hand.
+ */
+export function settingsFlags(): Record<string, FlagValue> {
+  const settings = getSettings()
+  const out: Record<string, FlagValue> = {}
+
+  if (settings.disableCaptureFeatures) Object.assign(out, DISABLE_CAPTURE_FLAGS)
+
+  if (settings.enableVoiceChat) {
+    // Only add the voice chat flags when they are not already set the other way.
+    for (const [name, value] of Object.entries(VOICE_CHAT_FLAGS)) {
+      if (!(name in out)) out[name] = value
+    }
+  }
+
+  return out
+}
+
+/** The flag map that will be written on the next launch, including toggles. */
+export function effectiveFlags(): Record<string, FlagValue> {
+  return { ...activeFlags(), ...settingsFlags() }
+}
+
+/** Reports which built-in entries are present in the shipped snapshot. */
+export function builtinAllowlistSize(): number {
+  return BUILTIN_ALLOWLIST.length
 }

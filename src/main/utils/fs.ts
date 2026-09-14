@@ -138,6 +138,7 @@ export function safeJoin(root: string, ...segments: string[]): string {
 /** Sanitises a user-supplied name for use as a single path segment. */
 export function sanitizeName(name: string, fallback = 'untitled'): string {
   const cleaned = name
+    // eslint-disable-next-line no-control-regex -- control characters are the point
     .replace(/[<>:"/\\|?*\u0000-\u001f]/g, '')
     .replace(/\s+/g, ' ')
     .trim()

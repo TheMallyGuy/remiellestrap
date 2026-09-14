@@ -10,7 +10,7 @@ const MAX_VISIBLE = 4
 const DEFAULT_TIMEOUT = 5000
 
 let items = $state<Toast[]>([])
-const timers = new Map<string, ReturnType<typeof setTimeout>>()
+const timers: Record<string, ReturnType<typeof setTimeout>> = {}
 let counter = 0
 
 export const toasts = {
@@ -43,10 +43,7 @@ export function pushToast(payload: ToastPayload): string {
   }
 
   if (timeout > 0) {
-    timers.set(
-      id,
-      setTimeout(() => dismissToast(id), timeout)
-    )
+    timers[id] = setTimeout(() => dismissToast(id), timeout)
   }
 
   return id
@@ -58,14 +55,14 @@ export function dismissToast(id: string): void {
 }
 
 export function clearToasts(): void {
-  for (const id of timers.keys()) clearTimer(id)
+  for (const id of Object.keys(timers)) clearTimer(id)
   items = []
 }
 
 function clearTimer(id: string): void {
-  const handle = timers.get(id)
+  const handle = timers[id]
   if (handle !== undefined) {
     clearTimeout(handle)
-    timers.delete(id)
+    delete timers[id]
   }
 }

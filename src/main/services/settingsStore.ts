@@ -7,8 +7,10 @@ import {
   KNOWN_CHANNELS,
   type AppSettings,
   type ArtSlot,
-  type BooruTagMap
+  type BooruTagMap,
+  type CleanerCategory
 } from '@shared/settings'
+import { CLEANER_TARGETS } from '@shared/catalog'
 import { paths } from '../utils/paths'
 import { ensureDir, readJson, writeJson } from '../utils/fs'
 import { createLogger } from '../utils/logger'
@@ -102,6 +104,51 @@ function coerceFlagProfiles(value: unknown): Record<string, Record<string, unkno
   return out
 }
 
+/**
+ * Fixed list -> value. Used for every enum-shaped setting so an unknown string
+ * can never reach the rest of the app (or, worse, the filesystem).
+ */
+function pickFrom<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
+  return typeof value === 'string' && (allowed as readonly string[]).includes(value)
+    ? (value as T)
+    : fallback
+}
+
+/** Clamps a float into a range, falling back when the value is not a number. */
+function num(value: unknown, fallback: number, min: number, max: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
+  return Math.min(Math.max(value, min), max)
+}
+
+/** A #rrggbb colour, or the fallback. */
+function hex(value: unknown, fallback: string): string {
+  return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value.trim())
+    ? value.trim().toLowerCase()
+    : fallback
+}
+
+/** An absolute path string, or null. Rejects obviously bogus values. */
+function nullablePath(value: unknown, fallback: string | null): string | null {
+  if (value === null || value === undefined) return fallback
+  const asString = str(value, '', 1024).trim()
+  if (asString.length === 0) return null
+  // Control characters are already stripped; refuse relative and protocol-ish
+  // values so a "path" can never be interpreted as a URL by a later feature.
+  if (!/^([a-zA-Z]:[\\/]|\/|\/\/)/.test(asString)) return fallback
+  return asString
+}
+
+const CLEANER_IDS = CLEANER_TARGETS.map((target) => target.id)
+
+function coerceCleanerTargets(value: unknown, fallback: CleanerCategory[]): CleanerCategory[] {
+  if (!Array.isArray(value)) return [...fallback]
+  const allowed = new Set<string>(CLEANER_IDS)
+  const out = value.filter(
+    (item): item is CleanerCategory => typeof item === 'string' && allowed.has(item)
+  )
+  return out.length > 0 ? [...new Set(out)] : []
+}
+
 function coerceBounds(value: unknown): AppSettings['windowBounds'] {
   if (typeof value !== 'object' || value === null) return null
   const source = value as Record<string, unknown>
@@ -142,7 +189,11 @@ export function coerceSettings(input: unknown, base: AppSettings = DEFAULT_SETTI
     has(key) ? source[key] : base[key]
 
   return {
-    theme: pick(value('theme'), ['dark', 'light', 'system'] as const, base.theme),
+    theme: pickFrom(
+      value('theme'),
+      ['dark', 'light', 'system', 'prism-night', 'ivory-cathedral', 'gold-ember'] as const,
+      base.theme
+    ),
     accentMode: pick(value('accentMode'), ['gold', 'prism'] as const, base.accentMode),
     channel: str(value('channel'), base.channel, 40) || 'LIVE',
     autoCloseBootstrapper: bool(value('autoCloseBootstrapper'), base.autoCloseBootstrapper),
@@ -178,12 +229,7 @@ export function coerceSettings(input: unknown, base: AppSettings = DEFAULT_SETTI
       : coerceChosenPosts(base.chosenBooruPosts),
     reduceMotion: bool(value('reduceMotion'), base.reduceMotion),
     showBootstrapperArt: bool(value('showBootstrapperArt'), base.showBootstrapperArt),
-    installLocation: (() => {
-      const raw = value('installLocation')
-      if (raw === null || raw === undefined) return base.installLocation ?? null
-      const asString = str(raw, '', 1024).trim()
-      return asString.length > 0 ? asString : null
-    })(),
+    installLocation: nullablePath(value('installLocation'), base.installLocation),
     parallelDownloads: int(value('parallelDownloads'), base.parallelDownloads, 1, 16),
     notifyOnInstallComplete: bool(value('notifyOnInstallComplete'), base.notifyOnInstallComplete),
     notifyOnRobloxExit: bool(value('notifyOnRobloxExit'), base.notifyOnRobloxExit),
@@ -192,7 +238,167 @@ export function coerceSettings(input: unknown, base: AppSettings = DEFAULT_SETTI
     launchArguments: str(value('launchArguments'), base.launchArguments, 512),
     robloxLocale: str(value('robloxLocale'), base.robloxLocale, 16) || 'en_us',
     gameLocale: str(value('gameLocale'), base.gameLocale, 16) || 'en_us',
-    windowBounds: has('windowBounds') ? coerceBounds(source.windowBounds) : base.windowBounds
+    windowBounds: has('windowBounds') ? coerceBounds(source.windowBounds) : base.windowBounds,
+
+    /* Accounts */
+    activeAccountId: (() => {
+      const raw = value('activeAccountId')
+      if (raw === null || raw === undefined) return null
+      const id = str(raw, '', 64).trim()
+      return /^[A-Za-z0-9_-]{1,64}$/.test(id) ? id : null
+    })(),
+    accountLaunchStrategy: pick(
+      value('accountLaunchStrategy'),
+      ['ticket', 'plain'] as const,
+      base.accountLaunchStrategy
+    ),
+    accountBackgroundRefresh: bool(
+      value('accountBackgroundRefresh'),
+      base.accountBackgroundRefresh
+    ),
+    accountRefreshMinutes: int(value('accountRefreshMinutes'), base.accountRefreshMinutes, 1, 60),
+    showAccountInTitlebar: bool(value('showAccountInTitlebar'), base.showAccountInTitlebar),
+
+    /* Servers */
+    preferredRegion: str(value('preferredRegion'), base.preferredRegion, 40) || 'any',
+    serverSizePreference: pick(
+      value('serverSizePreference'),
+      ['any', 'small', 'big'] as const,
+      base.serverSizePreference
+    ),
+    autoSortServers: bool(value('autoSortServers'), base.autoSortServers),
+    serverRegionApi: (() => {
+      const raw = str(value('serverRegionApi'), base.serverRegionApi, 300).trim()
+      if (raw.length === 0) return ''
+      // Only https endpoints are honoured; this URL is fetched verbatim.
+      return /^https:\/\/[^\s]+$/i.test(raw) ? raw : base.serverRegionApi
+    })(),
+    serverCacheSeconds: int(value('serverCacheSeconds'), base.serverCacheSeconds, 0, 600),
+    autoRejoinRegionAware: bool(value('autoRejoinRegionAware'), base.autoRejoinRegionAware),
+    serverPageSize: int(value('serverPageSize'), base.serverPageSize, 10, 100),
+
+    /* Mods */
+    defaultModTarget: pick(
+      value('defaultModTarget'),
+      ['player', 'studio', 'both'] as const,
+      base.defaultModTarget
+    ),
+    applyModsImmediately: bool(value('applyModsImmediately'), base.applyModsImmediately),
+    communityModIndexUrl: (() => {
+      const raw = str(value('communityModIndexUrl'), base.communityModIndexUrl, 400).trim()
+      return raw.length === 0 || /^https:\/\/[^\s]+$/i.test(raw) ? raw : base.communityModIndexUrl
+    })(),
+    communityModAutoUpdate: bool(value('communityModAutoUpdate'), base.communityModAutoUpdate),
+
+    /* FastFlags */
+    flagAllowlistUrl: (() => {
+      const raw = str(value('flagAllowlistUrl'), base.flagAllowlistUrl, 400).trim()
+      return raw.length === 0 || /^https:\/\/[^\s]+$/i.test(raw) ? raw : base.flagAllowlistUrl
+    })(),
+    flagAllowlistSeverity: pick(
+      value('flagAllowlistSeverity'),
+      ['off', 'warn', 'block'] as const,
+      base.flagAllowlistSeverity
+    ),
+    flagAllowlistAutoUpdate: bool(value('flagAllowlistAutoUpdate'), base.flagAllowlistAutoUpdate),
+    lastAllowlistUpdate: int(
+      value('lastAllowlistUpdate'),
+      base.lastAllowlistUpdate,
+      0,
+      Number.MAX_SAFE_INTEGER
+    ),
+    disableCaptureFeatures: bool(value('disableCaptureFeatures'), base.disableCaptureFeatures),
+    enableVoiceChat: bool(value('enableVoiceChat'), base.enableVoiceChat),
+
+    /* Discord */
+    rpcShowPage: bool(value('rpcShowPage'), base.rpcShowPage),
+    rpcShowPlaytime: bool(value('rpcShowPlaytime'), base.rpcShowPlaytime),
+    rpcStatusMode: pick(value('rpcStatusMode'), ['game', 'generic'] as const, base.rpcStatusMode),
+    studioRpc: bool(value('studioRpc'), base.studioRpc),
+    studioBridgeEnabled: bool(value('studioBridgeEnabled'), base.studioBridgeEnabled),
+    studioBridgePort: int(value('studioBridgePort'), base.studioBridgePort, 1024, 65535),
+
+    /* Playtime */
+    trackPlaytime: bool(value('trackPlaytime'), base.trackPlaytime),
+    notifyPlaytimeOnExit: bool(value('notifyPlaytimeOnExit'), base.notifyPlaytimeOnExit),
+
+    /* Cleaner */
+    cleanerSchedule: pick(
+      value('cleanerSchedule'),
+      ['manual', 'launch', 'daily', 'weekly'] as const,
+      base.cleanerSchedule
+    ),
+    cleanerTargets: has('cleanerTargets')
+      ? coerceCleanerTargets(source.cleanerTargets, base.cleanerTargets)
+      : [...base.cleanerTargets],
+    crashHandlerAutoClose: bool(value('crashHandlerAutoClose'), base.crashHandlerAutoClose),
+    memoryTrimEnabled: bool(value('memoryTrimEnabled'), base.memoryTrimEnabled),
+    memoryTrimMinutes: int(value('memoryTrimMinutes'), base.memoryTrimMinutes, 1, 240),
+
+    /* Bootstrapper */
+    fixedVersionFolder: bool(value('fixedVersionFolder'), base.fixedVersionFolder),
+    fixedVersionFolderName: (() => {
+      const raw = str(value('fixedVersionFolderName'), base.fixedVersionFolderName, 40).trim()
+      // A single, safe path segment: no separators, no traversal.
+      return /^[A-Za-z0-9 ._-]{1,40}$/.test(raw) && !/^\.+$/.test(raw)
+        ? raw
+        : base.fixedVersionFolderName
+    })(),
+    applySettingsToStudio: bool(value('applySettingsToStudio'), base.applySettingsToStudio),
+
+    /* Appearance */
+    sidebarMode: pick(
+      value('sidebarMode'),
+      ['full', 'compact', 'icons'] as const,
+      base.sidebarMode
+    ),
+    windowEffect: pick(
+      value('windowEffect'),
+      ['none', 'auto', 'mica', 'acrylic', 'blur'] as const,
+      base.windowEffect
+    ),
+    fontFamily: str(value('fontFamily'), base.fontFamily, 120),
+    fontFile: nullablePath(value('fontFile'), base.fontFile),
+    backgroundStyle: pick(
+      value('backgroundStyle'),
+      ['none', 'solid', 'gradient', 'image', 'art'] as const,
+      base.backgroundStyle
+    ),
+    backgroundSolid: hex(value('backgroundSolid'), base.backgroundSolid),
+    backgroundGradientFrom: hex(value('backgroundGradientFrom'), base.backgroundGradientFrom),
+    backgroundGradientTo: hex(value('backgroundGradientTo'), base.backgroundGradientTo),
+    backgroundGradientAngle: int(
+      value('backgroundGradientAngle'),
+      base.backgroundGradientAngle,
+      0,
+      360
+    ),
+    backgroundImage: nullablePath(value('backgroundImage'), base.backgroundImage),
+    backgroundOpacity: num(value('backgroundOpacity'), base.backgroundOpacity, 0.05, 1),
+    backgroundAnimate: bool(value('backgroundAnimate'), base.backgroundAnimate),
+    backgroundBlur: int(value('backgroundBlur'), base.backgroundBlur, 0, 40),
+    launcherStyle: pick(
+      value('launcherStyle'),
+      ['fluent', 'classic', 'byfron', 'minimal', 'custom'] as const,
+      base.launcherStyle
+    ),
+    launcherCustom: str(value('launcherCustom'), base.launcherCustom, 20_000),
+    iconStyle: pick(value('iconStyle'), ['remielle', 'classic', 'modern'] as const, base.iconStyle),
+
+    /* Utilities */
+    powerPlanOnLaunch: str(value('powerPlanOnLaunch'), base.powerPlanOnLaunch, 64),
+    cpuAffinity: (() => {
+      const raw = str(value('cpuAffinity'), base.cpuAffinity, 64).replace(/\s+/g, '')
+      return /^[0-9,-]*$/.test(raw) ? raw : ''
+    })(),
+    gpuPreference: pick(
+      value('gpuPreference'),
+      ['auto', 'power-saving', 'high-performance'] as const,
+      base.gpuPreference
+    ),
+    trayShowLogs: bool(value('trayShowLogs'), base.trayShowLogs),
+    logBufferLines: int(value('logBufferLines'), base.logBufferLines, 100, 20_000),
+    language: str(value('language'), base.language, 12) || 'en'
   }
 }
 

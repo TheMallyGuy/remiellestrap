@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { SystemInfo } from '@shared/models'
+  import type { ChannelInfo, InstalledVersion, SystemInfo } from '@shared/models'
   import type { RobloxState } from '@shared/state'
   import { KNOWN_CHANNELS } from '@shared/settings'
   import { api, errorMessage } from '../ipc'
@@ -17,7 +17,13 @@
     updateSettings
   } from '../stores/settings.svelte'
   import { pushToast } from '../stores/toasts.svelte'
-  import { ellipsisPath, formatDateTime, shortVersion } from '../utils/format'
+  import {
+    ellipsisPath,
+    formatBytes,
+    formatDateTime,
+    formatRelative,
+    shortVersion
+  } from '../utils/format'
   import type { ConfirmOptions } from '../types'
   import ConfirmDialog from '../dialogs/ConfirmDialog.svelte'
   import Icon from '../components/Icon.svelte'
@@ -48,6 +54,89 @@
   let confirmAction = $state<(() => Promise<void>) | null>(null)
 
   const check = $derived(bootstrapper.updateCheck)
+
+  /* ------------------------------------------- Channel browser and versions */
+
+  let channels = $state<ChannelInfo[]>([])
+  let channelsBusy = $state(false)
+  let versions = $state<InstalledVersion[]>([])
+  let versionsBusy = $state(false)
+  let busyVersion = $state<string | null>(null)
+
+  $effect(() => {
+    void loadChannels(false)
+    void loadVersions()
+  })
+
+  async function loadChannels(refresh: boolean): Promise<void> {
+    channelsBusy = true
+    try {
+      channels = await api.channels.list(refresh)
+    } catch (error) {
+      pushToast({
+        kind: 'warning',
+        title: 'Could not read the channel list',
+        message: errorMessage(error)
+      })
+    } finally {
+      channelsBusy = false
+    }
+  }
+
+  async function selectChannel(name: string): Promise<void> {
+    try {
+      channels = await api.channels.set(name)
+      channelDraft = name
+      customChannel = false
+      pushToast({ kind: 'success', title: `Channel set to ${name}` })
+    } catch (error) {
+      pushToast({ kind: 'error', title: 'That channel was rejected', message: errorMessage(error) })
+    }
+  }
+
+  async function loadVersions(): Promise<void> {
+    versionsBusy = true
+    try {
+      versions = await api.versions.list()
+    } catch {
+      versions = []
+    } finally {
+      versionsBusy = false
+    }
+  }
+
+  async function versionAction(
+    action: 'setCurrent' | 'delete' | 'downgrade',
+    version: InstalledVersion
+  ): Promise<void> {
+    busyVersion = version.id
+
+    try {
+      if (action === 'downgrade') {
+        const result = await api.versions.downgrade({
+          versionHash: version.versionHash,
+          appType: version.appType
+        })
+        pushToast({
+          kind: result.ok ? 'success' : 'warning',
+          title: result.ok ? 'Reinstalling that version' : 'Could not reinstall it',
+          message: result.message
+        })
+      } else {
+        versions = await api.versions[action]({
+          versionHash: version.versionHash,
+          appType: version.appType
+        })
+      }
+
+      await loadVersions()
+      robloxState = await api.system.getRobloxState()
+    } catch (error) {
+      pushToast({ kind: 'error', title: 'That did not work', message: errorMessage(error) })
+    } finally {
+      busyVersion = null
+    }
+  }
 
   const channelOptions = $derived([
     ...KNOWN_CHANNELS.map((channel) => ({ value: channel, label: channel })),
@@ -569,3 +658,188 @@
     confirmAction = null
   }}
 />
+
+<div class="h-5"></div>
+
+<Section
+  title="Channel browser"
+  description="Every deployment Roblox publishes can be tracked here. Staging channels are usually ahead of LIVE, which is why they are listed with what they are currently serving."
+>
+  {#snippet actions()}
+    <button
+      type="button"
+      class="btn-ghost gap-1.5"
+      disabled={channelsBusy}
+      onclick={() => void loadChannels(true)}
+    >
+      <Icon name={channelsBusy ? 'spinner' : 'refresh'} size={13} />
+      Re-check
+    </button>
+  {/snippet}
+
+  {#if channels.length === 0}
+    <div class="space-y-2 py-3">
+      {#each [0, 1, 2] as row (row)}
+        <div class="skeleton h-10 rounded-control"></div>
+      {/each}
+    </div>
+  {:else}
+    <ul class="divide-y divide-ivory-200/6">
+      {#each channels as channel (channel.name)}
+        <li class="flex items-center gap-3 py-2.5">
+          <span class="min-w-0 flex-1">
+            <span class="flex items-center gap-1.5 text-xs text-ivory-200">
+              {channel.name}
+              {#if channel.isCurrent}
+                <span class="chip border-gold-500/40 text-gold-200">current</span>
+              {/if}
+              {#if channel.isInstalled}
+                <span class="chip">installed</span>
+              {/if}
+            </span>
+            <span class="mt-0.5 block truncate text-2xs text-ivory-500">
+              {#if channel.error}
+                {channel.error}
+              {:else}
+                client {shortVersion(channel.playerVersion) ??
+                  channel.playerClientVersion ??
+                  'unknown'}
+                {#if channel.studioVersion}· studio {shortVersion(channel.studioVersion)}{/if}
+              {/if}
+            </span>
+          </span>
+
+          {#if !channel.isCurrent}
+            <button
+              type="button"
+              class="btn-secondary px-2.5 py-1 text-2xs"
+              disabled={Boolean(channel.error)}
+              onclick={() => void selectChannel(channel.name)}
+            >
+              Track
+            </button>
+          {/if}
+        </li>
+      {/each}
+    </ul>
+  {/if}
+</Section>
+
+<div class="h-5"></div>
+
+<Section
+  title="Installed versions"
+  description="Every client build on disk. Switching which one the launcher uses takes effect immediately; deleting frees the space."
+>
+  {#snippet actions()}
+    <button type="button" class="btn-ghost gap-1.5" onclick={() => void api.versions.openFolder()}>
+      <Icon name="folder" size={13} />
+      Open folder
+    </button>
+  {/snippet}
+
+  {#if versionsBusy && versions.length === 0}
+    <div class="space-y-2 py-3">
+      {#each [0, 1] as row (row)}
+        <div class="skeleton h-12 rounded-control"></div>
+      {/each}
+    </div>
+  {:else if versions.length === 0}
+    <div class="py-6 text-center text-xs text-ivory-500">
+      Nothing installed yet. Install the client above and it will appear here.
+    </div>
+  {:else}
+    <ul class="divide-y divide-ivory-200/6">
+      {#each versions as version (version.id)}
+        <li class="flex items-center gap-3 py-2.5">
+          <span class="min-w-0 flex-1">
+            <span class="flex items-center gap-1.5 text-xs text-ivory-200">
+              {shortVersion(version.versionHash) ?? version.versionHash}
+              <span class="chip">{version.appType === 'studio' ? 'studio' : 'player'}</span>
+              {#if version.isCurrent}
+                <span class="chip border-gold-500/40 text-gold-200">in use</span>
+              {/if}
+              {#if version.missing}
+                <span class="chip border-negative/30 text-negative/90">missing</span>
+              {/if}
+            </span>
+            <span class="mt-0.5 block truncate text-2xs text-ivory-500">
+              {version.channel} · {formatBytes(version.sizeBytes)} · installed
+              {formatRelative(Date.parse(version.installedAt) || Date.now())}
+            </span>
+          </span>
+
+          {#if !version.isCurrent && !version.missing}
+            <button
+              type="button"
+              class="btn-secondary px-2.5 py-1 text-2xs"
+              disabled={busyVersion === version.id}
+              onclick={() => void versionAction('setCurrent', version)}
+            >
+              Use
+            </button>
+          {/if}
+
+          <button
+            type="button"
+            class="btn-ghost px-2.5 py-1 text-2xs"
+            disabled={busyVersion === version.id}
+            title="Reinstall this exact build"
+            onclick={() => void versionAction('downgrade', version)}
+          >
+            Reinstall
+          </button>
+
+          <button
+            type="button"
+            class="btn-ghost px-2 py-1 text-2xs text-negative/80 hover:text-negative"
+            disabled={busyVersion === version.id || version.isCurrent}
+            onclick={() => void versionAction('delete', version)}
+          >
+            <Icon name="trash" size={13} />
+          </button>
+        </li>
+      {/each}
+    </ul>
+  {/if}
+</Section>
+
+<div class="h-5"></div>
+
+<Section
+  title="Fixed version folder"
+  description="Client tools usually look for the executable at a predictable path. Installing into one stable folder instead of version-&lt;guid&gt; keeps those tools working across updates."
+>
+  <SettingRow
+    title="Use a fixed folder"
+    description="The folder is created beside the versioned installs, and the launcher keeps pointing at it as the client updates."
+  >
+    <Switch
+      checked={config.fixedVersionFolder}
+      onchange={(value) => void updateSettings({ fixedVersionFolder: value })}
+    />
+  </SettingRow>
+
+  {#if config.fixedVersionFolder}
+    <SettingRow
+      title="Folder name"
+      description="Letters, numbers, spaces, dots, dashes and underscores only."
+    >
+      <input
+        class="field w-48 py-1.5 font-mono text-xs"
+        value={config.fixedVersionFolderName}
+        onblur={(event) =>
+          void updateSettings({ fixedVersionFolderName: event.currentTarget.value })}
+      />
+    </SettingRow>
+
+    <SettingRow
+      title="Currently installed"
+      description={robloxState?.fixedFolderVersion
+        ? `Serving ${shortVersion(robloxState.fixedFolderVersion) ?? robloxState.fixedFolderVersion}`
+        : 'Nothing has been installed into a fixed folder yet.'}
+    >
+      <span class="text-2xs text-ivory-500">applies from the next install</span>
+    </SettingRow>
+  {/if}
+</Section>

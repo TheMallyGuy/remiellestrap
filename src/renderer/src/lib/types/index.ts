@@ -7,11 +7,14 @@ import type { IconName } from '../components/icons'
 
 export const PAGES = [
   'home',
+  'accounts',
+  'servers',
   'appearance',
   'behaviour',
   'fastflags',
   'mods',
   'integrations',
+  'utilities',
   'installation',
   'about'
 ] as const

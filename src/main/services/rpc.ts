@@ -86,6 +86,12 @@ let current: RpcUpdate = {
   since: null
 }
 
+/** Which page of the launcher is open, used while nothing is running. */
+let launcherPage: { page: string; label: string | null } = { page: 'home', label: null }
+
+/** Presence published by the Studio companion plugin, when one is connected. */
+let studio: { placeName: string; placeId: string | null; since: number } | null = null
+
 export function currentRpc(): RpcUpdate {
   return current
 }
@@ -386,18 +392,55 @@ export function refresh(): void {
 export function setIdle(): void {
   if (!enabled) return
 
+  const settings = getSettings()
   inGame = false
   override = null
+
+  // Studio wins over the launcher: if a companion plugin is reporting a place,
+  // that is what the user is actually doing.
+  if (studio && settings.studioRpc) {
+    baseActivity = {
+      details: studio.placeName,
+      state: 'Editing in Studio',
+      timestamps: { start: Math.floor(studio.since / 1000) },
+      assets: { large_image: 'roblox_studio', large_text: 'Roblox Studio' },
+      buttons: studio.placeId
+        ? [
+            {
+              label: 'View experience',
+              url: `https://www.roblox.com/games/${studio.placeId}`
+            }
+          ]
+        : undefined
+    }
+
+    current = {
+      connected,
+      details: studio.placeName,
+      state: 'Editing in Studio',
+      largeImage: null,
+      since: studio.since
+    }
+
+    commit()
+    publish()
+    return
+  }
+
+  const stateLine = settings.rpcShowPage
+    ? (launcherPage.label ?? pageLabel(launcherPage.page))
+    : 'In the launcher'
+
   baseActivity = {
     details: 'RemielleStrap',
-    state: 'In the launcher',
+    state: stateLine,
     assets: { large_text: 'RemielleStrap' }
   }
 
   current = {
     connected,
     details: 'RemielleStrap',
-    state: 'In the launcher',
+    state: stateLine,
     largeImage: null,
     since: null
   }
@@ -406,11 +449,45 @@ export function setIdle(): void {
   publish()
 }
 
+/** Human labels for the page-level presence, mirroring the sidebar. */
+const PAGE_LABELS: Record<string, string> = {
+  home: 'In the launcher',
+  accounts: 'Managing accounts',
+  servers: 'Browsing servers',
+  appearance: 'Tuning the look',
+  behaviour: 'Tuning launches',
+  fastflags: 'Editing FastFlags',
+  mods: 'Managing mods',
+  integrations: 'Wiring up Discord',
+  installation: 'Installing Roblox',
+  cleaner: 'Cleaning up',
+  logs: 'Reading logs',
+  utilities: 'Tweaking the PC',
+  about: 'Reading the credits'
+}
+
+function pageLabel(page: string): string {
+  return PAGE_LABELS[page] ?? 'In the launcher'
+}
+
+/**
+ * Records the page the user is looking at.
+ *
+ * Announcing the page only makes sense while nothing is running; the presence
+ * is re-committed so the change appears immediately.
+ */
+export function setPage(page: string, label?: string | null): void {
+  launcherPage = { page, label: label ?? null }
+  if (!enabled || inGame) return
+  setIdle()
+}
+
 /** Presence shown while the user is in an experience. */
-export function setPlaying(activity: ActivityEntry): void {
+export function setPlaying(activity: ActivityEntry, extras: { playtimeMs?: number } = {}): void {
   if (!enabled) return
 
   const settings = getSettings()
+  studio = null
   const details = activity.gameName ?? `Place ${activity.placeId}`
   const serverTypeLine =
     activity.serverType === 'private'
@@ -419,8 +496,20 @@ export function setPlaying(activity: ActivityEntry): void {
         ? 'In a reserved server'
         : 'In a public server'
 
-  // "Include the server type" controls the second presence line.
-  const state = settings.showAccountOnRpc ? serverTypeLine : undefined
+  const accountLine = settings.showAccountOnRpc && activity.accessCode ? null : null
+
+  // "Include the server type" controls the second presence line; when playtime
+  // is on it wins, because it is the line that changes while you play.
+  const playtimeLine =
+    settings.rpcShowPlaytime && extras.playtimeMs && extras.playtimeMs > 60_000
+      ? `${formatPlaytime(extras.playtimeMs)} this session`
+      : null
+
+  const state =
+    playtimeLine ??
+    (settings.showAccountOnRpc ? serverTypeLine : undefined) ??
+    accountLine ??
+    undefined
 
   inGame = true
   override = null
@@ -541,6 +630,44 @@ async function fetchAssetThumbnail(assetId: string): Promise<string | null> {
   } catch {
     return null
   }
+}
+
+/* --------------------------------------------------------------- Studio */
+
+/**
+ * Publishes a Studio session reported by the companion plugin.
+ *
+ * The presence is published through the same base-activity mechanism the
+ * launcher page uses, so it clears itself the moment a game starts or the
+ * plugin stops reporting.
+ */
+export function setStudioPresence(report: {
+  placeName: string
+  placeId: string | null
+  scriptName: string | null
+}): void {
+  studio = {
+    placeName: report.placeName,
+    placeId: report.placeId,
+    since: studio?.since ?? Date.now()
+  }
+
+  if (!enabled || inGame) return
+  setIdle()
+}
+
+export function clearStudioPresence(): void {
+  studio = null
+  if (!enabled || inGame) return
+  setIdle()
+}
+
+/** Formats a duration for a Discord state line, e.g. "1h 24m". */
+function formatPlaytime(ms: number): string {
+  const minutes = Math.floor(ms / 60_000)
+  if (minutes < 60) return `${minutes}m`
+  const hours = Math.floor(minutes / 60)
+  return `${hours}h ${minutes % 60}m`
 }
 
 export function clearPresence(): void {
