@@ -133,13 +133,17 @@ export async function summary(): Promise<PlaytimeSummary> {
     games: Object.values(playtime.games)
       .sort((a, b) => b.totalMs - a.totalMs)
       .slice(0, 60),
-    currentSessionMs: playtime.openSessionStartedAt ? Date.now() - playtime.openSessionStartedAt : null
+    currentSessionMs: playtime.openSessionStartedAt
+      ? Date.now() - playtime.openSessionStartedAt
+      : null
   }
 }
 
 export async function reset(): Promise<PlaytimeSummary> {
   const state = await loadState()
-  await saveState({ playtime: { ...DEFAULT_PLAYTIME, firstLaunchAt: state.playtime.firstLaunchAt } })
+  await saveState({
+    playtime: { ...DEFAULT_PLAYTIME, firstLaunchAt: state.playtime.firstLaunchAt }
+  })
   logger.info('Playtime statistics reset')
   return summary()
 }

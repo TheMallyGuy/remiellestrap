@@ -100,10 +100,7 @@ export async function setCurrent(request: VersionActionRequest): Promise<Install
   }
 
   await saveVersions({
-    versions: [
-      entry,
-      ...store.versions.filter((item) => item.versionHash !== entry.versionHash)
-    ]
+    versions: [entry, ...store.versions.filter((item) => item.versionHash !== entry.versionHash)]
   })
 
   await saveRobloxState({
@@ -155,12 +152,20 @@ export async function remove(request: VersionActionRequest): Promise<InstalledVe
  * the deployment's own version history), and the same package pipeline as a
  * normal install is run against it.
  */
-export async function installSpecific(versionGuid: string, appType: AppType = 'player'): Promise<BootstrapperResult> {
+export async function installSpecific(
+  versionGuid: string,
+  appType: AppType = 'player'
+): Promise<BootstrapperResult> {
   const binaryType = binaryFor(appType)
   const settings = getSettings()
 
   if (!/^version-[0-9a-f]{16,}$/i.test(versionGuid)) {
-    return { ok: false, version: null, launched: false, message: `'${versionGuid}' is not a version id` }
+    return {
+      ok: false,
+      version: null,
+      launched: false,
+      message: `'${versionGuid}' is not a version id`
+    }
   }
 
   const baseUrl = await resolveBaseUrl()

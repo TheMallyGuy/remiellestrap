@@ -42,7 +42,13 @@ function entry(
 }
 
 const CAPTURE_ENTRIES: FlagAllowlistEntry[] = Object.keys(DISABLE_CAPTURE_FLAGS).map((name) =>
-  entry(name, 'Privacy', 'Turns part of Roblox\u2019s screenshot/video capture pipeline off.', 'boolean', 'caution')
+  entry(
+    name,
+    'Privacy',
+    'Turns part of Roblox\u2019s screenshot/video capture pipeline off.',
+    'boolean',
+    'caution'
+  )
 )
 
 const VOICE_ENTRIES: FlagAllowlistEntry[] = Object.keys(VOICE_CHAT_FLAGS).map((name) =>
@@ -51,91 +57,342 @@ const VOICE_ENTRIES: FlagAllowlistEntry[] = Object.keys(VOICE_CHAT_FLAGS).map((n
 
 export const BUILTIN_ALLOWLIST: readonly FlagAllowlistEntry[] = [
   /* Rendering / graphics */
-  entry('FFlagDebugGraphicsPreferD3D11', 'Graphics', 'Force the Direct3D 11 renderer instead of the default.', 'boolean', 'caution'),
-  entry('FFlagDebugGraphicsPreferVulkan', 'Graphics', 'Force the Vulkan renderer where the driver exposes it.', 'boolean', 'caution'),
-  entry('FFlagDebugGraphicsPreferOpenGL', 'Graphics', 'Force the OpenGL renderer.', 'boolean', 'caution'),
-  entry('FFlagDebugGraphicsDisableDirect3D11', 'Graphics', 'Disable the Direct3D 11 renderer entirely.', 'boolean', 'advanced'),
-  entry('FFlagDebugGraphicsDisableMetal', 'Graphics', 'Disable the Metal renderer (macOS).', 'boolean', 'advanced'),
-  entry('FFlagGraphicsDisableVulkan', 'Graphics', 'Disable Vulkan even when the driver offers it.', 'boolean', 'caution'),
-  entry('DFIntDebugFRMQualityLevelOverride', 'Graphics', 'Override the visual quality level (1\u201310).', 'number', 'caution', {
-    min: 1,
-    max: 10,
-    defaultValue: 10
-  }),
-  entry('FIntRenderShadowIntensity', 'Graphics', 'Shadow darkness, 0 disables shadows.', 'number', 'safe', {
-    min: 0,
-    max: 100,
-    defaultValue: 100
-  }),
-  entry('DFFlagTextureQualityOverrideEnabled', 'Graphics', 'Enable the texture quality override below.', 'boolean', 'safe'),
-  entry('DFIntTextureQualityOverride', 'Graphics', 'Texture quality level (0\u20133).', 'number', 'safe', {
-    min: 0,
-    max: 3,
-    defaultValue: 3
-  }),
-  entry('FFlagDisablePostFx', 'Graphics', 'Skip post-processing effects such as bloom and depth of field.', 'boolean', 'safe'),
-  entry('FFlagDisableTerrainMotionBlur', 'Graphics', 'Disable motion blur on terrain.', 'boolean', 'safe'),
-  entry('DFIntDebugFRMQualityLevel', 'Graphics', 'Legacy quality level override.', 'number', 'caution', { min: 1, max: 10 }),
-  entry('FFlagRenderGuiTextureQuality', 'Graphics', 'Higher quality UI textures in some clients.', 'boolean', 'safe'),
+  entry(
+    'FFlagDebugGraphicsPreferD3D11',
+    'Graphics',
+    'Force the Direct3D 11 renderer instead of the default.',
+    'boolean',
+    'caution'
+  ),
+  entry(
+    'FFlagDebugGraphicsPreferVulkan',
+    'Graphics',
+    'Force the Vulkan renderer where the driver exposes it.',
+    'boolean',
+    'caution'
+  ),
+  entry(
+    'FFlagDebugGraphicsPreferOpenGL',
+    'Graphics',
+    'Force the OpenGL renderer.',
+    'boolean',
+    'caution'
+  ),
+  entry(
+    'FFlagDebugGraphicsDisableDirect3D11',
+    'Graphics',
+    'Disable the Direct3D 11 renderer entirely.',
+    'boolean',
+    'advanced'
+  ),
+  entry(
+    'FFlagDebugGraphicsDisableMetal',
+    'Graphics',
+    'Disable the Metal renderer (macOS).',
+    'boolean',
+    'advanced'
+  ),
+  entry(
+    'FFlagGraphicsDisableVulkan',
+    'Graphics',
+    'Disable Vulkan even when the driver offers it.',
+    'boolean',
+    'caution'
+  ),
+  entry(
+    'DFIntDebugFRMQualityLevelOverride',
+    'Graphics',
+    'Override the visual quality level (1\u201310).',
+    'number',
+    'caution',
+    {
+      min: 1,
+      max: 10,
+      defaultValue: 10
+    }
+  ),
+  entry(
+    'FIntRenderShadowIntensity',
+    'Graphics',
+    'Shadow darkness, 0 disables shadows.',
+    'number',
+    'safe',
+    {
+      min: 0,
+      max: 100,
+      defaultValue: 100
+    }
+  ),
+  entry(
+    'DFFlagTextureQualityOverrideEnabled',
+    'Graphics',
+    'Enable the texture quality override below.',
+    'boolean',
+    'safe'
+  ),
+  entry(
+    'DFIntTextureQualityOverride',
+    'Graphics',
+    'Texture quality level (0\u20133).',
+    'number',
+    'safe',
+    {
+      min: 0,
+      max: 3,
+      defaultValue: 3
+    }
+  ),
+  entry(
+    'FFlagDisablePostFx',
+    'Graphics',
+    'Skip post-processing effects such as bloom and depth of field.',
+    'boolean',
+    'safe'
+  ),
+  entry(
+    'FFlagDisableTerrainMotionBlur',
+    'Graphics',
+    'Disable motion blur on terrain.',
+    'boolean',
+    'safe'
+  ),
+  entry(
+    'DFIntDebugFRMQualityLevel',
+    'Graphics',
+    'Legacy quality level override.',
+    'number',
+    'caution',
+    { min: 1, max: 10 }
+  ),
+  entry(
+    'FFlagRenderGuiTextureQuality',
+    'Graphics',
+    'Higher quality UI textures in some clients.',
+    'boolean',
+    'safe'
+  ),
 
   /* Performance */
-  entry('DFIntTaskSchedulerTargetFps', 'Performance', 'Unlocks the framerate cap. 0 means "no cap" on most clients.', 'number', 'safe', {
-    min: 0,
-    max: 10_000,
-    defaultValue: 60
-  }),
-  entry('FFlagTaskSchedulerTargetFpsEnabled', 'Performance', 'Enable the framerate target above.', 'boolean', 'safe'),
-  entry('FFlagDisableDPIScale', 'Performance', 'Ignore the display scaling factor, which can help on high-DPI screens.', 'boolean', 'caution'),
-  entry('FFlagHandleAltEnterFullscreenManually', 'Performance', 'Let the client handle Alt+Enter itself instead of the window manager.', 'boolean', 'safe'),
-  entry('DFIntMaxDownloadThreads', 'Performance', 'Number of parallel asset download threads.', 'number', 'advanced', {
-    min: 1,
-    max: 32
-  }),
-  entry('DFIntPhysicsEnvironmentSpeed', 'Performance', 'Scales physics stepping; a value other than 1 changes simulation behaviour.', 'number', 'advanced', {
-    min: 0.5,
-    max: 2
-  }),
-  entry('FFlagLuaAppEnableFontCache', 'Performance', 'Cache client fonts between screens.', 'boolean', 'safe'),
+  entry(
+    'DFIntTaskSchedulerTargetFps',
+    'Performance',
+    'Unlocks the framerate cap. 0 means "no cap" on most clients.',
+    'number',
+    'safe',
+    {
+      min: 0,
+      max: 10_000,
+      defaultValue: 60
+    }
+  ),
+  entry(
+    'FFlagTaskSchedulerTargetFpsEnabled',
+    'Performance',
+    'Enable the framerate target above.',
+    'boolean',
+    'safe'
+  ),
+  entry(
+    'FFlagDisableDPIScale',
+    'Performance',
+    'Ignore the display scaling factor, which can help on high-DPI screens.',
+    'boolean',
+    'caution'
+  ),
+  entry(
+    'FFlagHandleAltEnterFullscreenManually',
+    'Performance',
+    'Let the client handle Alt+Enter itself instead of the window manager.',
+    'boolean',
+    'safe'
+  ),
+  entry(
+    'DFIntMaxDownloadThreads',
+    'Performance',
+    'Number of parallel asset download threads.',
+    'number',
+    'advanced',
+    {
+      min: 1,
+      max: 32
+    }
+  ),
+  entry(
+    'DFIntPhysicsEnvironmentSpeed',
+    'Performance',
+    'Scales physics stepping; a value other than 1 changes simulation behaviour.',
+    'number',
+    'advanced',
+    {
+      min: 0.5,
+      max: 2
+    }
+  ),
+  entry(
+    'FFlagLuaAppEnableFontCache',
+    'Performance',
+    'Cache client fonts between screens.',
+    'boolean',
+    'safe'
+  ),
 
   /* Networking */
-  entry('DFIntConnectionMTUSize', 'Networking', 'Override the maximum transmission unit used by the client.', 'number', 'advanced', {
-    min: 576,
-    max: 1500
-  }),
-  entry('DFIntHttpThrottleErrorCodes', 'Networking', 'Tune how aggressively the client backs off on HTTP errors.', 'number', 'advanced'),
-  entry('FIntRakNetResendBufferArrayLength', 'Networking', 'Size of the reliable packet resend buffer.', 'number', 'advanced', { min: 16, max: 4096 }),
-  entry('FFlagEnableBetterNetworkErrors', 'Networking', 'More descriptive disconnect messages.', 'boolean', 'safe'),
-  entry('DFIntNetworkPingIntervalMS', 'Networking', 'How often the client reports its ping.', 'number', 'caution', { min: 250, max: 10_000 }),
+  entry(
+    'DFIntConnectionMTUSize',
+    'Networking',
+    'Override the maximum transmission unit used by the client.',
+    'number',
+    'advanced',
+    {
+      min: 576,
+      max: 1500
+    }
+  ),
+  entry(
+    'DFIntHttpThrottleErrorCodes',
+    'Networking',
+    'Tune how aggressively the client backs off on HTTP errors.',
+    'number',
+    'advanced'
+  ),
+  entry(
+    'FIntRakNetResendBufferArrayLength',
+    'Networking',
+    'Size of the reliable packet resend buffer.',
+    'number',
+    'advanced',
+    { min: 16, max: 4096 }
+  ),
+  entry(
+    'FFlagEnableBetterNetworkErrors',
+    'Networking',
+    'More descriptive disconnect messages.',
+    'boolean',
+    'safe'
+  ),
+  entry(
+    'DFIntNetworkPingIntervalMS',
+    'Networking',
+    'How often the client reports its ping.',
+    'number',
+    'caution',
+    { min: 250, max: 10_000 }
+  ),
 
   /* User interface */
-  entry('FFlagEnableInGameMenuV1Update', 'Interface', 'Newer in-game menu layout on clients that support it.', 'boolean', 'safe'),
-  entry('FFlagDisableInGameMenuFade', 'Interface', 'Open the in-game menu without the fade animation.', 'boolean', 'safe'),
+  entry(
+    'FFlagEnableInGameMenuV1Update',
+    'Interface',
+    'Newer in-game menu layout on clients that support it.',
+    'boolean',
+    'safe'
+  ),
+  entry(
+    'FFlagDisableInGameMenuFade',
+    'Interface',
+    'Open the in-game menu without the fade animation.',
+    'boolean',
+    'safe'
+  ),
   entry('FFlagChatTransparencyEnabled', 'Interface', 'Translucent chat window.', 'boolean', 'safe'),
-  entry('FIntChatDefaultWindowTransparency', 'Interface', 'Default chat transparency, 0\u20131.', 'number', 'safe', { min: 0, max: 1 }),
-  entry('FFlagHideChatBarEnabled', 'Interface', 'Hide the chat input bar until it is focused.', 'boolean', 'safe'),
+  entry(
+    'FIntChatDefaultWindowTransparency',
+    'Interface',
+    'Default chat transparency, 0\u20131.',
+    'number',
+    'safe',
+    { min: 0, max: 1 }
+  ),
+  entry(
+    'FFlagHideChatBarEnabled',
+    'Interface',
+    'Hide the chat input bar until it is focused.',
+    'boolean',
+    'safe'
+  ),
   entry('DFFlagDisableVIPUpsell', 'Interface', 'Hide premium upsell prompts.', 'boolean', 'safe'),
-  entry('FFlagRemoveVoiceIndicator', 'Interface', 'Hide the microphone indicator overlay.', 'boolean', 'caution'),
+  entry(
+    'FFlagRemoveVoiceIndicator',
+    'Interface',
+    'Hide the microphone indicator overlay.',
+    'boolean',
+    'caution'
+  ),
 
   /* Privacy */
-  entry('FFlagDisableTelemetry', 'Privacy', 'Disable the client telemetry reporter.', 'boolean', 'advanced'),
-  entry('DFFlagDisableCrashReporting', 'Privacy', 'Do not send crash reports.', 'boolean', 'caution'),
+  entry(
+    'FFlagDisableTelemetry',
+    'Privacy',
+    'Disable the client telemetry reporter.',
+    'boolean',
+    'advanced'
+  ),
+  entry(
+    'DFFlagDisableCrashReporting',
+    'Privacy',
+    'Do not send crash reports.',
+    'boolean',
+    'caution'
+  ),
   ...CAPTURE_ENTRIES,
 
   /* Voice chat */
   ...VOICE_ENTRIES,
 
   /* Client behaviour */
-  entry('FFlagDebugDisableLegacyTweening', 'Client', 'Use the newer tween implementation everywhere.', 'boolean', 'advanced'),
+  entry(
+    'FFlagDebugDisableLegacyTweening',
+    'Client',
+    'Use the newer tween implementation everywhere.',
+    'boolean',
+    'advanced'
+  ),
   entry('FFlagDisableControllerEmulation', 'Client', 'Ignore gamepad input.', 'boolean', 'caution'),
   entry('DFFlagDisableGamepadCursor', 'Client', 'Disable the gamepad cursor.', 'boolean', 'safe'),
   entry('FFlagUserSoundEnabled', 'Client', 'Master switch for client sound.', 'boolean', 'safe'),
-  entry('FFlagEnableMouseLockOption', 'Client', 'Show the Shift Lock option in settings.', 'boolean', 'safe'),
-  entry('FFlagDebugAlwaysDisplayFPS', 'Client', 'Always show the framerate counter.', 'boolean', 'safe'),
+  entry(
+    'FFlagEnableMouseLockOption',
+    'Client',
+    'Show the Shift Lock option in settings.',
+    'boolean',
+    'safe'
+  ),
+  entry(
+    'FFlagDebugAlwaysDisplayFPS',
+    'Client',
+    'Always show the framerate counter.',
+    'boolean',
+    'safe'
+  ),
   entry('FFlagDebugDisplayFPS', 'Client', 'Show the framerate counter overlay.', 'boolean', 'safe'),
-  entry('DFIntDebugResetPhysicsOnTeleport', 'Client', 'Reset physics state when teleporting; can fix some glitches.', 'boolean', 'advanced'),
-  entry('FFlagUseOptimizedPhysics', 'Client', 'Use the optimised physics solver.', 'boolean', 'advanced'),
-  entry('FFlagIXPServiceEnabled', 'Client', 'Enable the in-experience purchase service.', 'boolean', 'caution'),
-  entry('DFFlagDiscordRichPresence', 'Client', 'Toggle the client\u2019s own Discord presence (independent of the launcher\u2019s).', 'boolean', 'safe')
+  entry(
+    'DFIntDebugResetPhysicsOnTeleport',
+    'Client',
+    'Reset physics state when teleporting; can fix some glitches.',
+    'boolean',
+    'advanced'
+  ),
+  entry(
+    'FFlagUseOptimizedPhysics',
+    'Client',
+    'Use the optimised physics solver.',
+    'boolean',
+    'advanced'
+  ),
+  entry(
+    'FFlagIXPServiceEnabled',
+    'Client',
+    'Enable the in-experience purchase service.',
+    'boolean',
+    'caution'
+  ),
+  entry(
+    'DFFlagDiscordRichPresence',
+    'Client',
+    'Toggle the client\u2019s own Discord presence (independent of the launcher\u2019s).',
+    'boolean',
+    'safe'
+  )
 ]
 
 /**
@@ -146,7 +403,8 @@ export const FLAG_PRESETS: readonly FlagPreset[] = [
   {
     id: 'fps-unlocked',
     name: 'Unlock the framerate',
-    description: 'Removes the 60 FPS ceiling and lets the client use as many frames as the display allows.',
+    description:
+      'Removes the 60 FPS ceiling and lets the client use as many frames as the display allows.',
     category: 'Performance',
     risk: 'safe',
     flags: {
@@ -193,7 +451,8 @@ export const FLAG_PRESETS: readonly FlagPreset[] = [
   {
     id: 'd3d11',
     name: 'Prefer Direct3D 11',
-    description: 'Forces the Direct3D 11 renderer. Useful when a driver update breaks the default one.',
+    description:
+      'Forces the Direct3D 11 renderer. Useful when a driver update breaks the default one.',
     category: 'Graphics',
     risk: 'caution',
     flags: {
@@ -203,7 +462,8 @@ export const FLAG_PRESETS: readonly FlagPreset[] = [
   {
     id: 'privacy',
     name: 'Quieter client',
-    description: 'Disables telemetry, crash reporting, screenshot/video capture and premium upsells.',
+    description:
+      'Disables telemetry, crash reporting, screenshot/video capture and premium upsells.',
     category: 'Privacy',
     risk: 'caution',
     flags: {
@@ -216,7 +476,8 @@ export const FLAG_PRESETS: readonly FlagPreset[] = [
   {
     id: 'voice-chat',
     name: 'Enable voice chat flags',
-    description: 'Turns on the client-side voice chat capability flags. Server eligibility still applies.',
+    description:
+      'Turns on the client-side voice chat capability flags. Server eligibility still applies.',
     category: 'Voice chat',
     risk: 'caution',
     flags: { ...VOICE_CHAT_FLAGS }
@@ -275,7 +536,8 @@ export function parseRemoteAllowlist(payload: unknown): FlagAllowlistEntry[] {
 
     out.push({
       name,
-      category: typeof descriptor.category === 'string' ? descriptor.category.slice(0, 40) : 'Other',
+      category:
+        typeof descriptor.category === 'string' ? descriptor.category.slice(0, 40) : 'Other',
       description:
         typeof descriptor.description === 'string'
           ? descriptor.description.slice(0, 400)
@@ -286,11 +548,14 @@ export function parseRemoteAllowlist(payload: unknown): FlagAllowlistEntry[] {
       max: typeof descriptor.max === 'number' ? descriptor.max : null,
       options: Array.isArray(descriptor.options)
         ? (descriptor.options.filter(
-            (item) => typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean'
+            (item) =>
+              typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean'
           ) as FlagValue[])
         : [],
       risk:
-        descriptor.risk === 'safe' || descriptor.risk === 'advanced' || descriptor.risk === 'caution'
+        descriptor.risk === 'safe' ||
+        descriptor.risk === 'advanced' ||
+        descriptor.risk === 'caution'
           ? descriptor.risk
           : 'caution',
       presets: []
@@ -358,7 +623,9 @@ export function mergeAllowlist(remote: FlagAllowlistEntry[]): FlagAllowlistEntry
 
   // Attach preset membership so the UI can mark which flags a preset owns.
   for (const item of merged.values()) {
-    item.presets = FLAG_PRESETS.filter((preset) => item.name in preset.flags).map((preset) => preset.id)
+    item.presets = FLAG_PRESETS.filter((preset) => item.name in preset.flags).map(
+      (preset) => preset.id
+    )
   }
 
   return [...merged.values()].sort(

@@ -17,7 +17,13 @@
     updateSettings
   } from '../stores/settings.svelte'
   import { pushToast } from '../stores/toasts.svelte'
-  import { ellipsisPath, formatBytes, formatDateTime, formatRelative, shortVersion } from '../utils/format'
+  import {
+    ellipsisPath,
+    formatBytes,
+    formatDateTime,
+    formatRelative,
+    shortVersion
+  } from '../utils/format'
   import type { ConfirmOptions } from '../types'
   import ConfirmDialog from '../dialogs/ConfirmDialog.svelte'
   import Icon from '../components/Icon.svelte'
@@ -67,7 +73,11 @@
     try {
       channels = await api.channels.list(refresh)
     } catch (error) {
-      pushToast({ kind: 'warning', title: 'Could not read the channel list', message: errorMessage(error) })
+      pushToast({
+        kind: 'warning',
+        title: 'Could not read the channel list',
+        message: errorMessage(error)
+      })
     } finally {
       channelsBusy = false
     }
@@ -103,7 +113,10 @@
 
     try {
       if (action === 'downgrade') {
-        const result = await api.versions.downgrade({ versionHash: version.versionHash, appType: version.appType })
+        const result = await api.versions.downgrade({
+          versionHash: version.versionHash,
+          appType: version.appType
+        })
         pushToast({
           kind: result.ok ? 'success' : 'warning',
           title: result.ok ? 'Reinstalling that version' : 'Could not reinstall it',
@@ -688,7 +701,9 @@
               {#if channel.error}
                 {channel.error}
               {:else}
-                client {shortVersion(channel.playerVersion) ?? channel.playerClientVersion ?? 'unknown'}
+                client {shortVersion(channel.playerVersion) ??
+                  channel.playerClientVersion ??
+                  'unknown'}
                 {#if channel.studioVersion}· studio {shortVersion(channel.studioVersion)}{/if}
               {/if}
             </span>
@@ -813,7 +828,8 @@
       <input
         class="field w-48 py-1.5 font-mono text-xs"
         value={config.fixedVersionFolderName}
-        onblur={(event) => void updateSettings({ fixedVersionFolderName: event.currentTarget.value })}
+        onblur={(event) =>
+          void updateSettings({ fixedVersionFolderName: event.currentTarget.value })}
       />
     </SettingRow>
 

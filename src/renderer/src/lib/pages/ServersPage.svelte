@@ -59,13 +59,16 @@
     const fromPing = serverPing(server).region
     if (fromPing) return regionById(fromPing).label
     if (server.region) return regionById(server.region).label
-    return regionForDatacenter(server.datacenter) ? regionById(regionForDatacenter(server.datacenter)!).label : 'Unknown'
+    return regionForDatacenter(server.datacenter)
+      ? regionById(regionForDatacenter(server.datacenter)!).label
+      : 'Unknown'
   }
 
   function regionMatchesPreference(server: ServerInstance): boolean {
     const preference = settings.value.preferredRegion
     if (preference === 'any') return true
-    const region = serverPing(server).region ?? server.region ?? regionForDatacenter(server.datacenter)
+    const region =
+      serverPing(server).region ?? server.region ?? regionForDatacenter(server.datacenter)
     return region === preference
   }
 
@@ -157,7 +160,8 @@
 >
   <SettingRow
     title="Preferred region"
-    description={activeRegion.hint ?? 'Servers in this region are sorted first and joined by default.'}
+    description={activeRegion.hint ??
+      'Servers in this region are sorted first and joined by default.'}
   >
     <Select
       value={settings.value.preferredRegion}
@@ -177,7 +181,8 @@
         { value: 'big', label: 'Fuller servers' },
         { value: 'small', label: 'Quieter servers' }
       ]}
-      onchange={(value) => void updateSettings({ serverSizePreference: value as ServerSizePreference })}
+      onchange={(value) =>
+        void updateSettings({ serverSizePreference: value as ServerSizePreference })}
     />
   </SettingRow>
 
@@ -242,13 +247,13 @@
       {/each}
     </div>
   {:else if servers.error && servers.list.length === 0}
-    <EmptyState
-      icon="alert"
-      title="The server list did not come back"
-      message={servers.error}
-    >
+    <EmptyState icon="alert" title="The server list did not come back" message={servers.error}>
       {#snippet action()}
-        <button type="button" class="btn-secondary" onclick={() => void loadServers({ refresh: true })}>
+        <button
+          type="button"
+          class="btn-secondary"
+          onclick={() => void loadServers({ refresh: true })}
+        >
           Try again
         </button>
       {/snippet}
@@ -277,7 +282,9 @@
       </span>
 
       {#if servers.value?.stale}
-        <span class="chip border-caution/30 text-caution/90">rate limited — showing the last good list</span>
+        <span class="chip border-caution/30 text-caution/90"
+          >rate limited — showing the last good list</span
+        >
       {/if}
 
       {#if accounts.active}
@@ -300,7 +307,9 @@
               {/if}
               {regionOf(server)}
             </span>
-            <span class="block truncate text-2xs text-ivory-500">{server.datacenter ?? 'datacenter unknown'}</span>
+            <span class="block truncate text-2xs text-ivory-500"
+              >{server.datacenter ?? 'datacenter unknown'}</span
+            >
           </span>
 
           <!-- Ping -->
@@ -308,7 +317,13 @@
             {#if sample.ping === null}
               <span class="text-ivory-500">—</span>
             {:else}
-              <span class={sample.ping < 80 ? 'text-positive' : sample.ping < 160 ? 'text-gold-300' : 'text-caution'}>
+              <span
+                class={sample.ping < 80
+                  ? 'text-positive'
+                  : sample.ping < 160
+                    ? 'text-gold-300'
+                    : 'text-caution'}
+              >
                 {sample.ping} ms
               </span>
               <span class="block text-2xs text-ivory-600">est.</span>
@@ -319,11 +334,15 @@
           <span class="min-w-0 flex-1">
             <span class="flex items-center justify-between text-2xs text-ivory-500">
               <span>{server.playing}/{server.maxPlayers} players</span>
-              {#if server.uptimeSeconds}· {formatDuration(server.uptimeSeconds * 1000)}<span> uptime</span>{/if}
+              {#if server.uptimeSeconds}· {formatDuration(server.uptimeSeconds * 1000)}<span>
+                  uptime</span
+                >{/if}
             </span>
             <span class="mt-1 block h-1 overflow-hidden rounded-full bg-ink-700">
               <span
-                class="block h-full rounded-full {percent > 90 ? 'bg-caution/70' : 'bg-gold-500/60'}"
+                class="block h-full rounded-full {percent > 90
+                  ? 'bg-caution/70'
+                  : 'bg-gold-500/60'}"
                 style="width: {percent}%"
               ></span>
             </span>

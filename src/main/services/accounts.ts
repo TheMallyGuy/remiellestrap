@@ -241,7 +241,9 @@ async function recordFromUser(
  * validated against Roblox before anything is written, so a typo never leaves
  * a broken entry behind.
  */
-export async function addFromCookie(request: AccountAddRequest): Promise<OperationResult<AccountState>> {
+export async function addFromCookie(
+  request: AccountAddRequest
+): Promise<OperationResult<AccountState>> {
   const cookie = normalizeCookie(request.cookie)
   if (!cookie) {
     return {
@@ -453,7 +455,8 @@ export async function remove(id: string): Promise<OperationResult<AccountState>>
   profileCache.delete(id)
 
   const accounts = store.accounts.filter((account) => account.id !== id)
-  const activeAccountId = store.activeAccountId === id ? (accounts[0]?.id ?? null) : store.activeAccountId
+  const activeAccountId =
+    store.activeAccountId === id ? (accounts[0]?.id ?? null) : store.activeAccountId
 
   await persist({ accounts, activeAccountId })
 
@@ -484,6 +487,7 @@ export async function setActive(id: string | null): Promise<AccountState> {
 
 export async function updateNotes(id: string, notes: string): Promise<AccountState> {
   const store = await load()
+  // eslint-disable-next-line no-control-regex -- control characters are what we strip
   const trimmed = notes.replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 500)
   const accounts = store.accounts.map((account) =>
     account.id === id ? { ...account, notes: trimmed } : account
@@ -540,7 +544,8 @@ export async function refresh(
         if (state) presenceCache.set(account.userId, state)
 
         const avatarUrl = account.avatarUrl ?? avatar[account.userId] ?? null
-        if (avatarUrl !== account.avatarUrl) updates.set(account.id, { ...updates.get(account.id), avatarUrl })
+        if (avatarUrl !== account.avatarUrl)
+          updates.set(account.id, { ...updates.get(account.id), avatarUrl })
 
         if (options.profile) {
           const [profile, friends, followers, following] = await Promise.all([
@@ -565,9 +570,7 @@ export async function refresh(
         const expired = /401|403|not recognise/i.test(message)
         updates.set(account.id, {
           valid: false,
-          statusMessage: expired
-            ? 'This session expired. Sign in again to restore it.'
-            : message
+          statusMessage: expired ? 'This session expired. Sign in again to restore it.' : message
         })
       }
     })
@@ -732,7 +735,8 @@ export async function friends(
   if (list.length === 0) {
     return {
       ok: false,
-      error: 'No friends came back. The account may have its friends list hidden, or Roblox may be rate limiting.'
+      error:
+        'No friends came back. The account may have its friends list hidden, or Roblox may be rate limiting.'
     }
   }
 
@@ -764,7 +768,9 @@ export async function friends(
 
 /* ------------------------------------------------------------------- Games */
 
-export async function searchGames(request: GameSearchRequest): Promise<OperationResult<GameSummary[]>> {
+export async function searchGames(
+  request: GameSearchRequest
+): Promise<OperationResult<GameSummary[]>> {
   const limit = Math.min(Math.max(request.limit ?? 20, 1), 50)
   const games = await api.searchGames(request.query, limit)
   if (games.length === 0) {
@@ -776,9 +782,10 @@ export async function searchGames(request: GameSearchRequest): Promise<Operation
   return { ok: true, data: games }
 }
 
-export async function gameDetailsByRef(
-  request: { universeId?: number; placeId?: number }
-): Promise<OperationResult<GameSummary>> {
+export async function gameDetailsByRef(request: {
+  universeId?: number
+  placeId?: number
+}): Promise<OperationResult<GameSummary>> {
   let universeId = request.universeId ?? null
 
   if (!universeId && request.placeId) {
@@ -851,14 +858,19 @@ export interface ResolvedJoin {
  * plain public form the client handles on its own.
  */
 export async function resolveJoinUri(request: JoinAsRequest): Promise<ResolvedJoin> {
-  const placeId = request.placeId ?? (request.universeId ? await placeIdForUniverse(request.universeId) : null)
+  const placeId =
+    request.placeId ?? (request.universeId ? await placeIdForUniverse(request.universeId) : null)
   if (!placeId) throw new Error('A place id is required to join')
 
   const settings = getSettings()
   const accountId = request.accountId ?? settings.activeAccountId ?? null
 
   if (!accountId || settings.accountLaunchStrategy === 'plain') {
-    return { uri: buildTicketUri(null, placeId, request.serverId ?? null), accountId: null, accountName: null }
+    return {
+      uri: buildTicketUri(null, placeId, request.serverId ?? null),
+      accountId: null,
+      accountName: null
+    }
   }
 
   const store = await load()
@@ -871,7 +883,12 @@ export async function resolveJoinUri(request: JoinAsRequest): Promise<ResolvedJo
   const ticket = await api.joinTicket(cookie, placeId, request.serverId ?? null)
 
   return {
-    uri: buildTicketUri(ticket.ticket, ticket.placeId ?? placeId, ticket.jobId, request.accessCode ?? null),
+    uri: buildTicketUri(
+      ticket.ticket,
+      ticket.placeId ?? placeId,
+      ticket.jobId,
+      request.accessCode ?? null
+    ),
     accountId,
     accountName: record.username
   }
@@ -920,7 +937,12 @@ export async function resolveLaunchUri(request: {
 
   const ticket = await api.joinTicket(cookie, info.placeId, info.gameInstanceId ?? null)
 
-  return buildTicketUri(ticket.ticket, info.placeId, ticket.jobId ?? info.gameInstanceId ?? null, info.linkCode ?? null)
+  return buildTicketUri(
+    ticket.ticket,
+    info.placeId,
+    ticket.jobId ?? info.gameInstanceId ?? null,
+    info.linkCode ?? null
+  )
 }
 
 /** Records that an account was used, so the UI can order by recency. */
@@ -968,7 +990,6 @@ export function resetForTests(): void {
 }
 
 export { DEFAULT_ACCOUNTS }
-
 
 /* ------------------------------------------------------------- Backup hooks */
 

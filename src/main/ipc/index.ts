@@ -234,7 +234,9 @@ const handlers: HandlerMap = {
 
     const next: UiState = {
       openSections: Array.isArray(patch.openSections)
-        ? requireStringArray(patch.openSections, 'openSections', 200).map((value) => value.slice(0, 80))
+        ? requireStringArray(patch.openSections, 'openSections', 200).map((value) =>
+            value.slice(0, 80)
+          )
         : current.openSections,
       tabs:
         patch.tabs && typeof patch.tabs === 'object'
@@ -249,10 +251,7 @@ const handlers: HandlerMap = {
           ? Object.fromEntries(
               Object.entries(patch.scroll)
                 .slice(0, 40)
-                .map(([key, value]) => [
-                  key.slice(0, 40),
-                  Math.max(0, Number(value) || 0)
-                ])
+                .map(([key, value]) => [key.slice(0, 40), Math.max(0, Number(value) || 0)])
             )
           : current.scroll
     }
@@ -381,11 +380,17 @@ const handlers: HandlerMap = {
         accountId
       })
 
-      const result = await bootstrapper.run({ launch: true, rawUri: resolved.uri, accountId: resolved.accountId })
+      const result = await bootstrapper.run({
+        launch: true,
+        rawUri: resolved.uri,
+        accountId: resolved.accountId
+      })
 
       return {
         ...result,
-        message: resolved.accountName ? `${result.message} as ${resolved.accountName}` : result.message
+        message: resolved.accountName
+          ? `${result.message} as ${resolved.accountName}`
+          : result.message
       }
     } catch (error) {
       return {
@@ -439,8 +444,9 @@ const handlers: HandlerMap = {
 
     const list = Array.isArray(raw.servers) ? raw.servers.slice(0, 100) : []
     const targets = list
-      .filter((entry): entry is { id: string; datacenter: string | null } =>
-        Boolean(entry) && typeof (entry as { id?: unknown }).id === 'string'
+      .filter(
+        (entry): entry is { id: string; datacenter: string | null } =>
+          Boolean(entry) && typeof (entry as { id?: unknown }).id === 'string'
       )
       .map((entry) => ({
         id: entry.id.slice(0, 64),
@@ -464,7 +470,12 @@ const handlers: HandlerMap = {
     const uri = optionalString(raw.uri, 'uri', 4096)
 
     if (uri && !/^roblox(-player)?:/i.test(uri)) {
-      return { ok: false, version: null, launched: false, message: 'That is not a Roblox launch link' }
+      return {
+        ok: false,
+        version: null,
+        launched: false,
+        message: 'That is not a Roblox launch link'
+      }
     }
 
     return bootstrapper.launch({
@@ -532,7 +543,12 @@ const handlers: HandlerMap = {
 
     const previous = await versions.previousVersion()
     if (!previous) {
-      return { ok: false, version: null, launched: false, message: 'There is no earlier version to go back to' }
+      return {
+        ok: false,
+        version: null,
+        launched: false,
+        message: 'There is no earlier version to go back to'
+      }
     }
 
     return versions.installSpecific(previous.versionHash, previous.appType)
@@ -917,7 +933,9 @@ const handlers: HandlerMap = {
     const raw = (request ?? {}) as { title?: unknown; extensions?: unknown }
     const extensions = Array.isArray(raw.extensions)
       ? raw.extensions
-          .filter((value): value is string => typeof value === 'string' && /^[a-z0-9]{1,8}$/i.test(value))
+          .filter(
+            (value): value is string => typeof value === 'string' && /^[a-z0-9]{1,8}$/i.test(value)
+          )
           .slice(0, 10)
       : []
 
@@ -973,8 +991,17 @@ const handlers: HandlerMap = {
 
     // Only paths the app already owns may be revealed, so a compromised
     // renderer cannot use this to probe the filesystem.
-    const allowed = [paths.root, paths.logs, paths.mods, paths.downloads, paths.versions, paths.cache]
-    const inside = allowed.some((root) => target === root || target.startsWith(`${root}/`) || target.startsWith(`${root}\\`))
+    const allowed = [
+      paths.root,
+      paths.logs,
+      paths.mods,
+      paths.downloads,
+      paths.versions,
+      paths.cache
+    ]
+    const inside = allowed.some(
+      (root) => target === root || target.startsWith(`${root}/`) || target.startsWith(`${root}\\`)
+    )
 
     if (!inside) return failed('That path is outside the app data folder')
 
@@ -1119,7 +1146,12 @@ const handlers: HandlerMap = {
   'straps:import': async (request) => {
     const raw = requireObject(request, 'import') as unknown as StrapImportRequest
 
-    if (raw.id !== 'bloxstrap' && raw.id !== 'fishstrap' && raw.id !== 'froststrap' && raw.id !== 'remiellestrap') {
+    if (
+      raw.id !== 'bloxstrap' &&
+      raw.id !== 'fishstrap' &&
+      raw.id !== 'froststrap' &&
+      raw.id !== 'remiellestrap'
+    ) {
       throw new ValidationError('Unknown bootstrapper')
     }
 

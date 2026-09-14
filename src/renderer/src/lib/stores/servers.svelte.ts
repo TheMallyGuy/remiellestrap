@@ -58,7 +58,9 @@ export function applyServers(next: ServerListResult | null): void {
  * The place defaults to whatever the client is currently in, then to the last
  * played experience, so opening the page usually needs no typing at all.
  */
-export async function loadServers(options: { placeId?: string; refresh?: boolean } = {}): Promise<void> {
+export async function loadServers(
+  options: { placeId?: string; refresh?: boolean } = {}
+): Promise<void> {
   const target =
     options.placeId ||
     placeId ||
@@ -96,7 +98,9 @@ export async function loadServers(options: { placeId?: string; refresh?: boolean
 }
 
 /** Joins a specific server, or lets the main process pick the best match. */
-export async function joinServer(options: { serverId?: string; region?: string } = {}): Promise<void> {
+export async function joinServer(
+  options: { serverId?: string; region?: string } = {}
+): Promise<void> {
   if (!placeId) return
 
   loading = true
@@ -104,7 +108,9 @@ export async function joinServer(options: { serverId?: string; region?: string }
     const result = await api.servers.join({
       placeId,
       serverId: options.serverId,
-      region: options.region ?? (settings.value.preferredRegion === 'any' ? undefined : settings.value.preferredRegion),
+      region:
+        options.region ??
+        (settings.value.preferredRegion === 'any' ? undefined : settings.value.preferredRegion),
       size: settings.value.serverSizePreference,
       sort: settings.value.autoSortServers ? undefined : 'players'
     })
@@ -161,7 +167,8 @@ export function sortServers(key: ServerSortKey, size: ServerSizePreference): Ser
     return serverPing(server).region === region || server.region === region
   }
 
-  const pingOf = (server: ServerInstance): number => serverPing(server).ping ?? Number.POSITIVE_INFINITY
+  const pingOf = (server: ServerInstance): number =>
+    serverPing(server).ping ?? Number.POSITIVE_INFINITY
 
   const sorted = list.sort((a, b) => {
     if (key === 'ping') return pingOf(a) - pingOf(b)

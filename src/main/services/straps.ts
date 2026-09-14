@@ -140,7 +140,10 @@ function themeFrom(value: unknown): ThemeMode | null {
 }
 
 /** Maps a legacy settings document onto the parts of ours that line up. */
-function mapSettings(legacy: LegacySettings): { patch: Record<string, unknown>; applied: string[] } {
+function mapSettings(legacy: LegacySettings): {
+  patch: Record<string, unknown>
+  applied: string[]
+} {
   const patch: Record<string, unknown> = {}
   const applied: string[] = []
 
@@ -222,7 +225,9 @@ function mapFlags(legacy: LegacySettings): {
 }
 
 /** Also picks up a ClientAppSettings.json that a legacy strap left behind. */
-async function flagFileProfiles(root: string | null): Promise<Record<string, Record<string, FlagValue>>> {
+async function flagFileProfiles(
+  root: string | null
+): Promise<Record<string, Record<string, FlagValue>>> {
   if (!root) return {}
 
   const profiles: Record<string, Record<string, FlagValue>> = {}
@@ -319,7 +324,9 @@ export async function runImport(request: {
       (key) => !/^(Channel|Theme|LaunchMode|RobloxLocale|FlagProfiles|ActiveFlagProfile)/i.test(key)
     )
     if (unrecognised.length > 0) {
-      result.skipped.push(`${unrecognised.length} setting(s) have no equivalent and were left alone`)
+      result.skipped.push(
+        `${unrecognised.length} setting(s) have no equivalent and were left alone`
+      )
     }
   }
 
@@ -359,7 +366,9 @@ export async function runImport(request: {
 /* --------------------------------------------------------------- Helpers */
 
 /** Human summary of what an import would bring over, shown before it runs. */
-export async function preview(id: StrapId): Promise<{ settings: number; flagProfiles: number; mods: number }> {
+export async function preview(
+  id: StrapId
+): Promise<{ settings: number; flagProfiles: number; mods: number }> {
   const detections = await detect()
   const detection = detections.find((entry) => entry.id === id)
 
@@ -368,7 +377,10 @@ export async function preview(id: StrapId): Promise<{ settings: number; flagProf
   }
 
   try {
-    const legacy = JSON.parse(await readFile(detection.settingsFile, 'utf8')) as Record<string, unknown>
+    const legacy = JSON.parse(await readFile(detection.settingsFile, 'utf8')) as Record<
+      string,
+      unknown
+    >
     const { applied } = mapSettings(legacy)
     const { profiles } = mapFlags(legacy)
     const extra = await flagFileProfiles(detection.versionsFolder ?? detection.modsFolder)

@@ -47,7 +47,10 @@ function supportedEffects(): WindowEffect[] {
  * suits a launcher that is usually maximised over a desktop) and Acrylic
  * elsewhere.
  */
-export function applyEffect(window: BrowserWindow | null, requested: WindowEffect): WindowEffectState {
+export function applyEffect(
+  window: BrowserWindow | null,
+  requested: WindowEffect
+): WindowEffectState {
   const supported = supportedEffects()
 
   if (!window || window.isDestroyed()) {
@@ -256,12 +259,7 @@ export async function fontCatalog(): Promise<FontCatalog> {
     const output = await new Promise<string>((resolve) => {
       execFile(
         'reg',
-        [
-          'query',
-          'HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts',
-          '/v',
-          '*'
-        ],
+        ['query', 'HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts', '/v', '*'],
         { timeout: 6000, windowsHide: true },
         (error, stdout) => resolve(error ? '' : String(stdout))
       )

@@ -702,9 +702,11 @@ export async function run(options: InstallRunOptions = {}): Promise<Bootstrapper
     })
 
     if (settings.multiInstanceLaunching && process.platform === 'win32') {
-      await multiInstance.arm().catch((error) =>
-        logger.warn(`Multi-instance arming failed, continuing single-instance: ${String(error)}`)
-      )
+      await multiInstance
+        .arm()
+        .catch((error) =>
+          logger.warn(`Multi-instance arming failed, continuing single-instance: ${String(error)}`)
+        )
     }
 
     const executable = clientExecutable(versionGuid, binaryType)
@@ -884,12 +886,10 @@ export async function launch(
   const accountId = request?.accountId ?? settings.activeAccountId ?? null
 
   if (accountId) {
-    const resolved = await accountService
-      .resolveLaunchUri({ uri, accountId })
-      .catch((error) => {
-        logger.warn(`Launching as an account failed, using the plain URI: ${String(error)}`)
-        return null
-      })
+    const resolved = await accountService.resolveLaunchUri({ uri, accountId }).catch((error) => {
+      logger.warn(`Launching as an account failed, using the plain URI: ${String(error)}`)
+      return null
+    })
 
     if (resolved) uri = resolved
   }

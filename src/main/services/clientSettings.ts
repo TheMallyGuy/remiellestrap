@@ -327,7 +327,8 @@ export async function writeClientSettings(
     return {
       ...state,
       readOnly: true,
-      error: 'Close Roblox first — it rewrites its settings file on exit and would undo this change.',
+      error:
+        'Close Roblox first — it rewrites its settings file on exit and would undo this change.',
       skipped: Object.keys(patch)
     }
   }
@@ -357,14 +358,21 @@ export async function writeClientSettings(
       continue
     }
 
-    xml = xml.replace(pattern, (_match, open: string, _element: string, _old: string, close: string) => {
-      changed += 1
-      return `${open}${serialized}${close}`
-    })
+    xml = xml.replace(
+      pattern,
+      (_match, open: string, _element: string, _old: string, close: string) => {
+        changed += 1
+        return `${open}${serialized}${close}`
+      }
+    )
   }
 
   if (changed === 0) {
-    return { ...state, skipped, error: skipped.length > 0 ? 'None of those values exist in this client build' : null }
+    return {
+      ...state,
+      skipped,
+      error: skipped.length > 0 ? 'None of those values exist in this client build' : null
+    }
   }
 
   try {
@@ -400,7 +408,10 @@ export async function restoreClientSettingsBackup(): Promise<ClientSettingsState
     await copyFile(backup, state.path)
     logger.info('Restored GlobalBasicSettings from the RemielleStrap backup')
   } catch (error) {
-    return { ...state, error: error instanceof Error ? error.message : 'Could not restore the backup' }
+    return {
+      ...state,
+      error: error instanceof Error ? error.message : 'Could not restore the backup'
+    }
   }
 
   return readClientSettings()

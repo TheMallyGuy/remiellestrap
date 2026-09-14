@@ -103,7 +103,8 @@ function sanitize(payload: unknown): StudioBridgeReport | null {
         : typeof placeVersionRaw === 'string' && /^\d+$/.test(placeVersionRaw)
           ? Number.parseInt(placeVersionRaw, 10)
           : null,
-    studioVersion: typeof record.studioVersion === 'string' ? record.studioVersion.slice(0, 32) : null,
+    studioVersion:
+      typeof record.studioVersion === 'string' ? record.studioVersion.slice(0, 32) : null,
     authoring: typeof record.authoring === 'boolean' ? record.authoring : true,
     scriptName: typeof scriptNameRaw === 'string' ? scriptNameRaw.slice(0, 120) : null,
     lineCount:
@@ -161,9 +162,9 @@ export async function start(): Promise<StudioBridgeInfo> {
 
   return new Promise((resolve) => {
     const instance = createServer((request, response) => {
-      const url = request.url ?? '/'
+      const url = (request.url ?? '/').split('?')[0]
 
-      if (request.method === 'GET' && url.startsWith('/status')) {
+      if (request.method === 'GET' && url === '/status') {
         response.writeHead(200, { 'content-type': 'application/json' })
         response.end(JSON.stringify({ ok: true, app: 'RemielleStrap', port }))
         return
@@ -175,7 +176,7 @@ export async function start(): Promise<StudioBridgeInfo> {
       }
 
       void readBody(request).then((body) => {
-        if (url.startsWith('/clear')) {
+        if (url === '/clear') {
           report = null
           void clearStudioPresence()
           emit('studio:bridge', bridgeInfo())
@@ -183,7 +184,7 @@ export async function start(): Promise<StudioBridgeInfo> {
           return
         }
 
-        if (!url.startsWith('/presence')) {
+        if (url !== '/presence') {
           response.writeHead(404).end()
           return
         }
@@ -275,31 +276,22 @@ export async function sync(): Promise<StudioBridgeInfo> {
  * Studio loads `*.lua` files from there as plugins, so no build step is needed
  * and the user can read exactly what will run before it runs.
  */
-export async function installPlugin(): Promise<OperationResult<StudioBridgeInfo>> {
-  const port = Math.min(Math.max(getSettings().studioBridgePort, 1024), 65535)
-  const directory = robloxPluginsDirectory()
-
-  try {
-    await ensureDir(directory)
-  } catch (error) {
-    return {
-      ok: false,
-      error: `Studio's Plugins folder could not be created: ${
-        error instanceof Error ? error.message : String(error)
-      }`
-    }
-  }
-
-  const source = `--[[
+/**
+ * The Lua the companion plugin is built from.
+ *
+ * Kept in one place: the installer writes it and the interface shows it, so what
+ * the plugin does is never a mystery or a stale copy.
+ */
+const PLUGIN_LUA = `--[[
 	RemielleStrap presence bridge.
 
 	Installed by RemielleStrap. It posts the place you have open to the launcher
-	on 127.0.0.1 (port ${port}) so the Discord presence and the launcher's Studio
+	on 127.0.0.1 (port __PORT__) so the Discord presence and the launcher's Studio
 	indicator can follow along. It sends nothing else and never leaves the
 	machine. Delete this file to stop it.
 ]]
 
-local PORT = ${port}
+local PORT = __PORT__
 local HttpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
 
@@ -338,6 +330,39 @@ game:BindToClose(function()
 end)
 `
 
+export function pluginScript(port: number): string {
+  return (
+    `--[[
+	RemielleStrap presence bridge.
+
+	Installed by RemielleStrap. It posts the place you have open to the launcher
+	on 127.0.0.1 (port ${port}) so the Discord presence and the launcher's Studio
+	indicator can follow along. It sends nothing else and never leaves the
+	machine. Delete this file to stop it.
+]]
+
+local PORT = ${port}
+` + PLUGIN_LUA
+  ).replaceAll('__PORT__', String(port))
+}
+
+export async function installPlugin(): Promise<OperationResult<StudioBridgeInfo>> {
+  const port = Math.min(Math.max(getSettings().studioBridgePort, 1024), 65535)
+  const directory = robloxPluginsDirectory()
+
+  try {
+    await ensureDir(directory)
+  } catch (error) {
+    return {
+      ok: false,
+      error: `Studio's Plugins folder could not be created: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    }
+  }
+
+  const source = pluginScript(port)
+
   try {
     await writeFile(pluginPath(), source, 'utf8')
     logger.info(`Studio companion plugin written to ${pluginPath()}`)
@@ -353,5 +378,5 @@ end)
 
 /** The plugin source, so the UI can show what it does without opening a file. */
 export function pluginSource(): string {
-  return pluginPath()
+  return pluginScript(Math.min(Math.max(getSettings().studioBridgePort, 1024), 65535))
 }

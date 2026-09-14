@@ -106,9 +106,7 @@
   }
 
   const sessionLabel = $derived(
-    totals.currentSessionMs === null
-      ? null
-      : formatDuration(totals.currentSessionMs)
+    totals.currentSessionMs === null ? null : formatDuration(totals.currentSessionMs)
   )
 </script>
 
@@ -357,10 +355,7 @@
 
 <div class="h-5"></div>
 
-<Section
-  title="Presence"
-  description="Exactly what the Discord card says, and when."
->
+<Section title="Presence" description="Exactly what the Discord card says, and when.">
   <SettingRow
     title="Mention the page you are on"
     description="While you are in the launcher, the presence follows you around the app — Accounts, Mods, Servers — instead of saying “In the launcher”."
@@ -381,10 +376,7 @@
     />
   </SettingRow>
 
-  <SettingRow
-    title="Idle line"
-    description="What the second line says while nothing is running."
-  >
+  <SettingRow title="Idle line" description="What the second line says while nothing is running.">
     <Select
       value={settings.value.rpcStatusMode}
       options={[
@@ -413,7 +405,10 @@
   title="Playtime"
   description="Sessions are timed between the client starting and exiting; anything under twenty seconds is ignored."
 >
-  <SettingRow title="Track playtime" description="Keeps per-game totals and the session history above.">
+  <SettingRow
+    title="Track playtime"
+    description="Keeps per-game totals and the session history above."
+  >
     <Switch
       checked={settings.value.trackPlaytime}
       onchange={(value) => void updateSettings({ trackPlaytime: value })}
@@ -436,7 +431,11 @@
       {#if sessionLabel}
         <span class="chip border-positive/30 text-positive">now: {sessionLabel}</span>
       {/if}
-      <button type="button" class="btn-ghost px-2 py-1 text-2xs" onclick={() => (confirmReset = true)}>
+      <button
+        type="button"
+        class="btn-ghost px-2 py-1 text-2xs"
+        onclick={() => (confirmReset = true)}
+      >
         Clear
       </button>
     </div>
@@ -445,12 +444,21 @@
   {#if totals.games.length > 0}
     <SettingRow title="Most played" stacked>
       <ul class="space-y-1">
-        {#each [...totals.games].sort((a, b) => b.totalMs - a.totalMs).slice(0, 6) as game (game.placeId)}
+        {#each [...totals.games]
+          .sort((a, b) => b.totalMs - a.totalMs)
+          .slice(0, 6) as game (game.placeId)}
           <li class="flex items-center gap-2 text-2xs">
             {#if game.thumbnailUrl}
-              <img src={game.thumbnailUrl} alt="" class="h-6 w-9 rounded object-cover" loading="lazy" />
+              <img
+                src={game.thumbnailUrl}
+                alt=""
+                class="h-6 w-9 rounded object-cover"
+                loading="lazy"
+              />
             {/if}
-            <span class="min-w-0 flex-1 truncate text-ivory-300">{game.name || `Place ${game.placeId}`}</span>
+            <span class="min-w-0 flex-1 truncate text-ivory-300"
+              >{game.name || `Place ${game.placeId}`}</span
+            >
             <span class="text-ivory-500">{formatDuration(game.totalMs)}</span>
           </li>
         {/each}
@@ -489,14 +497,18 @@
     />
   </SettingRow>
 
-  <SettingRow title="Port" description="Change it if something else on this machine has taken the default.">
+  <SettingRow
+    title="Port"
+    description="Change it if something else on this machine has taken the default."
+  >
     <input
       type="number"
       class="field w-28 py-1.5 text-xs"
       min="1024"
       max="65535"
       value={settings.value.studioBridgePort}
-      onblur={(event) => void updateSettings({ studioBridgePort: Number(event.currentTarget.value) })}
+      onblur={(event) =>
+        void updateSettings({ studioBridgePort: Number(event.currentTarget.value) })}
     />
   </SettingRow>
 
@@ -539,7 +551,8 @@
     onclose={() => (confirmReset = false)}
   >
     <div class="mt-4 flex justify-end gap-2">
-      <button type="button" class="btn-ghost" onclick={() => (confirmReset = false)}>Keep it</button>
+      <button type="button" class="btn-ghost" onclick={() => (confirmReset = false)}>Keep it</button
+      >
       <button
         type="button"
         class="btn-danger"

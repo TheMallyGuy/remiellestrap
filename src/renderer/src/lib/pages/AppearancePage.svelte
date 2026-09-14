@@ -140,7 +140,11 @@
     try {
       material = await api.window.setEffect(next)
     } catch (error) {
-      pushToast({ kind: 'warning', title: 'That material did not take', message: errorMessage(error) })
+      pushToast({
+        kind: 'warning',
+        title: 'That material did not take',
+        message: errorMessage(error)
+      })
     }
   }
 
@@ -158,7 +162,11 @@
     if (result.ok && result.data) {
       await updateSettings({ fontFile: result.data, fontFamily: '' })
       fonts = await api.system.listFonts().catch(() => fonts)
-      pushToast({ kind: 'success', title: 'Font loaded', message: 'Applied everywhere in the app.' })
+      pushToast({
+        kind: 'success',
+        title: 'Font loaded',
+        message: 'Applied everywhere in the app.'
+      })
     } else if (result.error) {
       pushToast({ kind: 'info', title: 'No font chosen', message: result.error })
     }
@@ -177,7 +185,11 @@
         throw new Error('"name" and "title" are required strings')
       }
 
-      if (parsed.progress !== 'bar' && parsed.progress !== 'spinner' && parsed.progress !== 'dots') {
+      if (
+        parsed.progress !== 'bar' &&
+        parsed.progress !== 'spinner' &&
+        parsed.progress !== 'dots'
+      ) {
         throw new Error('"progress" must be "bar", "spinner" or "dots"')
       }
 
@@ -499,20 +511,20 @@
   <SettingRow
     title="Window material"
     description={material
-      ? material.reason ?? `Applied: ${material.applied}`
+      ? (material.reason ?? `Applied: ${material.applied}`)
       : 'Reading what this system supports…'}
   >
     <Select
       value={settings.value.windowEffect}
-      options={WINDOW_EFFECT_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
+      options={WINDOW_EFFECT_OPTIONS.map((option) => ({
+        value: option.value,
+        label: option.label
+      }))}
       onchange={(value) => void applyMaterial(value as WindowEffect)}
     />
   </SettingRow>
 
-  <SettingRow
-    title="Sidebar"
-    description="How much room the navigation rail takes."
-  >
+  <SettingRow title="Sidebar" description="How much room the navigation rail takes.">
     <Select
       value={settings.value.sidebarMode}
       options={SIDEBAR_MODES.map((mode) => ({ value: mode.value, label: mode.label }))}
@@ -544,7 +556,8 @@
 >
   <SettingRow
     title="Style"
-    description={BACKGROUND_STYLES.find((entry) => entry.value === settings.value.backgroundStyle)?.hint}
+    description={BACKGROUND_STYLES.find((entry) => entry.value === settings.value.backgroundStyle)
+      ?.hint}
   >
     <Select
       value={settings.value.backgroundStyle}
@@ -571,13 +584,15 @@
           type="color"
           class="h-8 w-14 cursor-pointer rounded border border-ivory-200/12 bg-transparent"
           value={settings.value.backgroundGradientFrom}
-          oninput={(event) => void updateSettings({ backgroundGradientFrom: event.currentTarget.value })}
+          oninput={(event) =>
+            void updateSettings({ backgroundGradientFrom: event.currentTarget.value })}
         />
         <input
           type="color"
           class="h-8 w-14 cursor-pointer rounded border border-ivory-200/12 bg-transparent"
           value={settings.value.backgroundGradientTo}
-          oninput={(event) => void updateSettings({ backgroundGradientTo: event.currentTarget.value })}
+          oninput={(event) =>
+            void updateSettings({ backgroundGradientTo: event.currentTarget.value })}
         />
       </div>
     </SettingRow>
@@ -589,14 +604,22 @@
         max="360"
         class="w-40 accent-[var(--color-gold-400)]"
         value={settings.value.backgroundGradientAngle}
-        oninput={(event) => void updateSettings({ backgroundGradientAngle: Number(event.currentTarget.value) })}
+        oninput={(event) =>
+          void updateSettings({ backgroundGradientAngle: Number(event.currentTarget.value) })}
       />
     </SettingRow>
   {/if}
 
   {#if settings.value.backgroundStyle === 'image'}
-    <SettingRow title="Image" description={settings.value.backgroundImage ?? 'No image chosen yet.'}>
-      <button type="button" class="btn-secondary gap-1.5" onclick={() => void pickBackgroundImage()}>
+    <SettingRow
+      title="Image"
+      description={settings.value.backgroundImage ?? 'No image chosen yet.'}
+    >
+      <button
+        type="button"
+        class="btn-secondary gap-1.5"
+        onclick={() => void pickBackgroundImage()}
+      >
         <Icon name="image" size={14} />
         Choose image
       </button>
@@ -608,7 +631,11 @@
       title="Artwork"
       description="Pulled through the App background slot above, so its tags and shuffle live with the other slots."
     >
-      <button type="button" class="btn-secondary gap-1.5" onclick={() => void loadArt('background', true)}>
+      <button
+        type="button"
+        class="btn-secondary gap-1.5"
+        onclick={() => void loadArt('background', true)}
+      >
         <Icon name="shuffle" size={14} />
         Shuffle
       </button>
@@ -616,29 +643,40 @@
   {/if}
 
   {#if settings.value.backgroundStyle !== 'none'}
-    <SettingRow title="Opacity" description={`${Math.round(settings.value.backgroundOpacity * 100)}%`}>
+    <SettingRow
+      title="Opacity"
+      description={`${Math.round(settings.value.backgroundOpacity * 100)}%`}
+    >
       <input
         type="range"
         min="0"
         max="100"
         class="w-40 accent-[var(--color-gold-400)]"
         value={Math.round(settings.value.backgroundOpacity * 100)}
-        oninput={(event) => void updateSettings({ backgroundOpacity: Number(event.currentTarget.value) / 100 })}
+        oninput={(event) =>
+          void updateSettings({ backgroundOpacity: Number(event.currentTarget.value) / 100 })}
       />
     </SettingRow>
 
-    <SettingRow title="Blur" description={`${settings.value.backgroundBlur}px — softens a busy picture.`}>
+    <SettingRow
+      title="Blur"
+      description={`${settings.value.backgroundBlur}px — softens a busy picture.`}
+    >
       <input
         type="range"
         min="0"
         max="24"
         class="w-40 accent-[var(--color-gold-400)]"
         value={settings.value.backgroundBlur}
-        oninput={(event) => void updateSettings({ backgroundBlur: Number(event.currentTarget.value) })}
+        oninput={(event) =>
+          void updateSettings({ backgroundBlur: Number(event.currentTarget.value) })}
       />
     </SettingRow>
 
-    <SettingRow title="Slow drift" description="A very slow pan. Ignored while Calm animations is on.">
+    <SettingRow
+      title="Slow drift"
+      description="A very slow pan. Ignored while Calm animations is on."
+    >
       <Switch
         checked={settings.value.backgroundAnimate}
         onchange={(value) => void updateSettings({ backgroundAnimate: value })}
@@ -649,7 +687,10 @@
 
 <div class="h-5"></div>
 
-<Section title="Typography" description="The app's typeface. A loaded file is used before any system family.">
+<Section
+  title="Typography"
+  description="The app's typeface. A loaded file is used before any system family."
+>
   <SettingRow
     title="Font file"
     description={settings.value.fontFile ?? 'No custom font loaded; the bundled families are used.'}
@@ -692,7 +733,8 @@
 >
   <SettingRow
     title="Style"
-    description={LAUNCHER_STYLES.find((entry) => entry.value === settings.value.launcherStyle)?.hint}
+    description={LAUNCHER_STYLES.find((entry) => entry.value === settings.value.launcherStyle)
+      ?.hint}
   >
     <Select
       value={settings.value.launcherStyle}
@@ -728,10 +770,19 @@
       {/if}
 
       <div class="mt-3 flex items-center justify-end gap-2">
-        <button type="button" class="btn-ghost text-xs" onclick={() => (launcherDraft = LAUNCHER_TEMPLATE)}>
+        <button
+          type="button"
+          class="btn-ghost text-xs"
+          onclick={() => (launcherDraft = LAUNCHER_TEMPLATE)}
+        >
           Reset to the template
         </button>
-        <button type="button" class="btn-primary text-xs" disabled={savingLauncher} onclick={saveLauncher}>
+        <button
+          type="button"
+          class="btn-primary text-xs"
+          disabled={savingLauncher}
+          onclick={saveLauncher}
+        >
           Save definition
         </button>
       </div>

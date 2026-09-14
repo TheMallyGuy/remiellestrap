@@ -5,12 +5,7 @@
  */
 
 export type ThemeMode =
-  | 'dark'
-  | 'light'
-  | 'system'
-  | 'prism-night'
-  | 'ivory-cathedral'
-  | 'gold-ember'
+  'dark' | 'light' | 'system' | 'prism-night' | 'ivory-cathedral' | 'gold-ember'
 
 export type AccentMode = 'gold' | 'prism'
 export type LaunchMode = 'player' | 'studio'

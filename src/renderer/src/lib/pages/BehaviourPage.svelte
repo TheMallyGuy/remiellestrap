@@ -57,21 +57,21 @@
     const trimmed = text.trim()
     if (trimmed.length === 0) return null
 
-    const cores = new Set<number>()
+    const cores: number[] = []
 
     for (const part of trimmed.split(',')) {
       const range = /^(\d{1,2})\s*-\s*(\d{1,2})$/.exec(part.trim())
       if (range) {
         const from = Number.parseInt(range[1], 10)
         const to = Number.parseInt(range[2], 10)
-        for (let core = Math.min(from, to); core <= Math.max(from, to); core += 1) cores.add(core)
+        for (let core = Math.min(from, to); core <= Math.max(from, to); core += 1) cores.push(core)
         continue
       }
 
-      if (/^\d{1,2}$/.test(part.trim())) cores.add(Number.parseInt(part.trim(), 10))
+      if (/^\d{1,2}$/.test(part.trim())) cores.push(Number.parseInt(part.trim(), 10))
     }
 
-    return cores.size > 0 ? [...cores].sort((a, b) => a - b) : null
+    return cores.length > 0 ? [...new Set(cores)].sort((a, b) => a - b) : null
   }
 
   async function commitAffinity(): Promise<void> {
@@ -317,7 +317,9 @@
         { value: 'plain', label: 'Plain launch' }
       ]}
       onchange={(value) =>
-        void updateSettings({ accountLaunchStrategy: value as typeof settings.value.accountLaunchStrategy })}
+        void updateSettings({
+          accountLaunchStrategy: value as typeof settings.value.accountLaunchStrategy
+        })}
     />
   </SettingRow>
 
@@ -421,7 +423,10 @@
 
 <div class="h-5"></div>
 
-<Section title="Safety" description="How strict the launcher is about FastFlags that are not on the allowlist.">
+<Section
+  title="Safety"
+  description="How strict the launcher is about FastFlags that are not on the allowlist."
+>
   <SettingRow
     title="Unknown flag policy"
     description="A warn keeps the flag and tells you; a block refuses to apply the profile."
@@ -433,14 +438,18 @@
         { value: 'warn', label: 'Warn about unknown flags' },
         { value: 'block', label: 'Block unknown flags' }
       ]}
-      onchange={(value) => void updateSettings({ flagAllowlistSeverity: value as AllowlistSeverity })}
+      onchange={(value) =>
+        void updateSettings({ flagAllowlistSeverity: value as AllowlistSeverity })}
     />
   </SettingRow>
 </Section>
 
 <div class="h-5"></div>
 
-<Section title="Language" description="The app's own interface language. Untranslated strings stay in English.">
+<Section
+  title="Language"
+  description="The app's own interface language. Untranslated strings stay in English."
+>
   <SettingRow title="Interface language">
     <Select
       value={settings.value.language}

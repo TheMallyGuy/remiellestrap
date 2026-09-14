@@ -51,7 +51,10 @@ function startMenuDirectory(): string {
 function iconPath(): string | null {
   const candidates =
     process.platform === 'win32'
-      ? [join(process.resourcesPath ?? '', 'icon.ico'), join(process.resourcesPath ?? '', 'icon.png')]
+      ? [
+          join(process.resourcesPath ?? '', 'icon.ico'),
+          join(process.resourcesPath ?? '', 'icon.png')
+        ]
       : [join(process.resourcesPath ?? '', 'icon.png')]
 
   return candidates.find((candidate) => candidate.length > 0) ?? null
@@ -86,7 +89,10 @@ async function plan(request: ShortcutRequest): Promise<ShortcutPlan> {
   const regionSuffix = request.region && request.region !== 'any' ? ` · ${request.region}` : ''
 
   return {
-    name: sanitizeName(request.name || `Roblox ${placeId}`, `Roblox ${placeId}`) + accountSuffix + regionSuffix,
+    name:
+      sanitizeName(request.name || `Roblox ${placeId}`, `Roblox ${placeId}`) +
+      accountSuffix +
+      regionSuffix,
     uri,
     args: [uri]
   }
@@ -157,7 +163,11 @@ async function writeShortcut(
     const file = join(directory, `${plan.name}.command`)
     await writeFile(
       file,
-      ['#!/bin/sh', `exec "${executable}" ${plan.args.map((arg) => `"${arg}"`).join(' ')}`, ''].join('\n'),
+      [
+        '#!/bin/sh',
+        `exec "${executable}" ${plan.args.map((arg) => `"${arg}"`).join(' ')}`,
+        ''
+      ].join('\n'),
       'utf8'
     )
     await chmod(file, 0o755)
@@ -192,8 +202,12 @@ async function writeShortcut(
  * launcher entirely (no mods, no flags, no account) — offered next to the
  * launcher shortcut so the difference is explicit.
  */
-export async function createClientShortcut(name: string, executable?: string): Promise<OperationResult<ShortcutResult>> {
-  const target = executable ?? join(localRobloxRoot(), 'Versions', 'current', 'RobloxPlayerBeta.exe')
+export async function createClientShortcut(
+  name: string,
+  executable?: string
+): Promise<OperationResult<ShortcutResult>> {
+  const target =
+    executable ?? join(localRobloxRoot(), 'Versions', 'current', 'RobloxPlayerBeta.exe')
   const directory = desktopDirectory()
   await ensureDir(directory)
 

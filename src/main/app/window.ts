@@ -233,9 +233,12 @@ function launcherWindowSize(): { width: number; height: number; background: stri
       background?: unknown
     }
 
-    const width = typeof parsed.width === 'number' ? Math.min(Math.max(parsed.width, 360), 900) : fallback.width
+    const width =
+      typeof parsed.width === 'number' ? Math.min(Math.max(parsed.width, 360), 900) : fallback.width
     const height =
-      typeof parsed.height === 'number' ? Math.min(Math.max(parsed.height, 120), 420) : fallback.height
+      typeof parsed.height === 'number'
+        ? Math.min(Math.max(parsed.height, 120), 420)
+        : fallback.height
     const background =
       typeof parsed.background === 'string' && /^#[0-9a-f]{3,8}$/i.test(parsed.background.trim())
         ? parsed.background.trim()

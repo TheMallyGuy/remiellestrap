@@ -48,11 +48,14 @@
         !settings.value.reduceMotion
           ? 'animate-[drift_22s_ease-in-out_infinite]'
           : ''}"
-        style="opacity: {settings.value.backgroundOpacity}; filter: blur({settings.value.backgroundBlur}px)"
+        style="opacity: {settings.value.backgroundOpacity}; filter: blur({settings.value
+          .backgroundBlur}px)"
       />
     {/if}
 
     <!-- A dark veil keeps text legible over any picture. -->
-    <div class="absolute inset-0 bg-ink-950/{settings.value.backgroundStyle === 'solid' ? '0' : '55'}"></div>
+    <div
+      class="absolute inset-0 bg-ink-950/{settings.value.backgroundStyle === 'solid' ? '0' : '55'}"
+    ></div>
   </div>
 {/if}

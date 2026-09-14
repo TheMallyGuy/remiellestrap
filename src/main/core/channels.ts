@@ -38,7 +38,9 @@ const cache = new Map<string, CacheEntry>()
  * so a private or unlisted deployment stays available across restarts.
  */
 export function channelNames(): string[] {
-  const stored = getSettings().channel.split(',').map((value) => value.trim())
+  const stored = getSettings()
+    .channel.split(',')
+    .map((value) => value.trim())
   const names = new Set<string>([...KNOWN_CHANNELS])
 
   for (const name of stored) {
@@ -84,11 +86,7 @@ async function probe(name: string, refresh: boolean): Promise<ChannelInfo> {
   // answered: two requests per channel would triple the time to fill the page.
   if (info.error === null && (name === current || process.env.REMIELLE_PROBE_STUDIO === '1')) {
     try {
-      const studio = await getLatestClientVersion(
-        binaryTypeFor('studio'),
-        name,
-        controller.signal
-      )
+      const studio = await getLatestClientVersion(binaryTypeFor('studio'), name, controller.signal)
       info.studioVersion = studio.version ?? studio.clientVersionUpload
     } catch {
       // Studio is optional: its absence is not an error worth showing.
@@ -165,7 +163,9 @@ export async function rememberChannel(name: string): Promise<ChannelInfo[]> {
     throw new Error('Channel names may only contain letters, numbers, dashes and underscores')
   }
 
-  const parts = getSettings().channel.split(',').map((value) => value.trim())
+  const parts = getSettings()
+    .channel.split(',')
+    .map((value) => value.trim())
   if (!parts.includes(trimmed)) parts.push(trimmed)
 
   await saveSettings({ channel: parts.filter(Boolean).join(',') })

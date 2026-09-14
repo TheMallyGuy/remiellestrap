@@ -84,7 +84,11 @@
       allowlist = await api.fastflags.allowlist(false)
       audit = await api.fastflags.audit(selected)
     } catch (error) {
-      pushToast({ kind: 'warning', title: 'The allowlist is unavailable', message: errorMessage(error) })
+      pushToast({
+        kind: 'warning',
+        title: 'The allowlist is unavailable',
+        message: errorMessage(error)
+      })
     } finally {
       allowlistBusy = false
     }
@@ -101,7 +105,11 @@
         message: `${allowlist.entries.length} flags, source: ${allowlist.source}`
       })
     } catch (error) {
-      pushToast({ kind: 'warning', title: 'Could not refresh the allowlist', message: errorMessage(error) })
+      pushToast({
+        kind: 'warning',
+        title: 'Could not refresh the allowlist',
+        message: errorMessage(error)
+      })
     } finally {
       allowlistBusy = false
     }
@@ -128,7 +136,11 @@
         message: `${Object.keys(preset.flags).length} flag(s) written into ${selected}`
       })
     } catch (error) {
-      pushToast({ kind: 'error', title: 'Could not apply that preset', message: errorMessage(error) })
+      pushToast({
+        kind: 'error',
+        title: 'Could not apply that preset',
+        message: errorMessage(error)
+      })
     } finally {
       applyingPreset = null
     }
@@ -176,9 +188,10 @@
     dirty = true
   }
 
-  const allowCategories = $derived(
-    ['all', ...new Set((allowlist?.entries ?? []).map((entry) => entry.category))]
-  )
+  const allowCategories = $derived([
+    'all',
+    ...new Set((allowlist?.entries ?? []).map((entry) => entry.category))
+  ])
 
   const visibleAllowlist = $derived(
     (allowlist?.entries ?? []).filter((entry) => {
@@ -197,8 +210,6 @@
   function hasFlag(name: string): boolean {
     return rows.some((row) => row.key === name)
   }
-
-
 
   const current = $derived(profiles.find((profile) => profile.name === selected) ?? null)
 
@@ -293,7 +304,7 @@
   }
 
   function validate(): boolean {
-    const seen = new Set<string>()
+    const seen: string[] = []
     let ok = true
 
     for (const row of rows) {
@@ -305,12 +316,12 @@
       } else if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
         row.error = 'Letters, digits and underscores only'
         ok = false
-      } else if (seen.has(key)) {
+      } else if (seen.includes(key)) {
         row.error = 'Duplicate flag name'
         ok = false
       } else {
         row.error = null
-        seen.add(key)
+        seen.push(key)
       }
     }
 
@@ -910,7 +921,9 @@
           <p class="text-2xs text-ivory-500">
             {cleanResult.removed.length} flag(s), {cleanResult.kept} kept.
             {#if cleanResult.removed.length > 0}
-              {cleanResult.removed.slice(0, 12).join(', ')}{cleanResult.removed.length > 12 ? '…' : ''}
+              {cleanResult.removed.slice(0, 12).join(', ')}{cleanResult.removed.length > 12
+                ? '…'
+                : ''}
             {/if}
           </p>
         </SettingRow>
@@ -931,7 +944,9 @@
                   <span class="chip border-caution/30 text-caution/90">{preset.risk}</span>
                 {/if}
               </span>
-              <span class="mt-0.5 block text-2xs leading-relaxed text-ivory-500">{preset.description}</span>
+              <span class="mt-0.5 block text-2xs leading-relaxed text-ivory-500"
+                >{preset.description}</span
+              >
               <span class="mt-1 block truncate font-mono text-[0.625rem] text-ivory-600">
                 {Object.keys(preset.flags).join(', ')}
               </span>
@@ -975,7 +990,9 @@
       </span>
     </div>
 
-    <ul class="max-h-[28rem] divide-y divide-ivory-200/6 overflow-y-auto border-t border-ivory-200/8">
+    <ul
+      class="max-h-[28rem] divide-y divide-ivory-200/6 overflow-y-auto border-t border-ivory-200/8"
+    >
       {#each visibleAllowlist as entry (entry.name)}
         {@const present = hasFlag(entry.name)}
         <li class="flex items-start gap-3 py-2.5">
@@ -991,7 +1008,9 @@
                 <span class="chip border-caution/30 text-caution/90">{entry.risk}</span>
               {/if}
             </span>
-            <span class="mt-0.5 block text-2xs leading-relaxed text-ivory-500">{entry.description}</span>
+            <span class="mt-0.5 block text-2xs leading-relaxed text-ivory-500"
+              >{entry.description}</span
+            >
             {#if entry.options.length > 0}
               <span class="mt-0.5 block font-mono text-[0.625rem] text-ivory-600">
                 {entry.options.map((option) => String(option)).join(' · ')}
@@ -1013,16 +1032,19 @@
     </ul>
 
     <p class="py-3 text-2xs leading-relaxed text-ivory-600">
-      The allowlist is merged from a built-in set and the configured remote list
-      ({settings.value.flagAllowlistUrl}). A check means Roblox's flag system knows the
-      name; a cross means the client will most likely ignore it.
+      The allowlist is merged from a built-in set and the configured remote list ({settings.value
+        .flagAllowlistUrl}). A check means Roblox's flag system knows the name; a cross means the
+      client will most likely ignore it.
     </p>
   {/if}
 </Section>
 
 <div class="h-5"></div>
 
-<Section title="Allowlist behaviour" description="How the launcher treats a flag it does not recognise.">
+<Section
+  title="Allowlist behaviour"
+  description="How the launcher treats a flag it does not recognise."
+>
   <SettingRow
     title="Update the allowlist automatically"
     description="Re-fetch the remote list once a week."

@@ -56,9 +56,14 @@
 
   /** Jump straight into the best server in the preferred region. */
   async function joinInRegion(): Promise<void> {
-    const target = quickPlace.trim() || current.activity?.placeId || activity.state.lastActivity?.placeId
+    const target =
+      quickPlace.trim() || current.activity?.placeId || activity.state.lastActivity?.placeId
     if (!target) {
-      pushToast({ kind: 'warning', title: 'Which game?', message: 'Enter a place id, or play something first.' })
+      pushToast({
+        kind: 'warning',
+        title: 'Which game?',
+        message: 'Enter a place id, or play something first.'
+      })
       return
     }
 
@@ -67,7 +72,8 @@
     try {
       const result = await api.servers.join({
         placeId: target,
-        region: settings.value.preferredRegion === 'any' ? undefined : settings.value.preferredRegion,
+        region:
+          settings.value.preferredRegion === 'any' ? undefined : settings.value.preferredRegion,
         size: settings.value.serverSizePreference,
         sort: settings.value.autoSortServers ? undefined : 'players'
       })
@@ -318,11 +324,7 @@
     description="Skip the website. Join the best server in your preferred region for any place id, as the selected account."
   >
     <div class="flex flex-wrap items-center gap-2 py-3">
-      <input
-        class="field w-44 py-1.5 text-xs"
-        placeholder="Place id"
-        bind:value={quickPlace}
-      />
+      <input class="field w-44 py-1.5 text-xs" placeholder="Place id" bind:value={quickPlace} />
 
       <button
         type="button"
@@ -353,11 +355,9 @@
 
     <SettingRow
       title="Launching as"
-      description={
-        accounts.active
-          ? `${accounts.active.displayName} · ${accounts.active.valid ? 'session valid' : 'session expired'}`
-          : 'No stored account — the client will use whatever session it has.'
-      }
+      description={accounts.active
+        ? `${accounts.active.displayName} · ${accounts.active.valid ? 'session valid' : 'session expired'}`
+        : 'No stored account — the client will use whatever session it has.'}
     >
       <div class="flex items-center gap-2">
         <Select
@@ -404,7 +404,12 @@
           {#each topGames as game (game.placeId)}
             <li class="flex items-center gap-2.5 text-2xs">
               {#if game.thumbnailUrl}
-                <img src={game.thumbnailUrl} alt="" class="h-7 w-10 rounded object-cover" loading="lazy" />
+                <img
+                  src={game.thumbnailUrl}
+                  alt=""
+                  class="h-7 w-10 rounded object-cover"
+                  loading="lazy"
+                />
               {/if}
               <span class="min-w-0 flex-1 truncate text-ivory-300">
                 {game.name || placeLabel(null, game.placeId)}

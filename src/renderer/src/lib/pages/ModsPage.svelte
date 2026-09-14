@@ -93,15 +93,21 @@
 
     // The main process copies the chosen file into a new mod at the slot's
     // client path — the renderer never handles the file itself.
-    const result = await api.mods.replaceFile({
-      slot: slot.id,
-      name: `${slot.label} replacement`,
-      target: settings.value.defaultModTarget
-    }).catch((error: unknown) => ({ ok: false as const, error: errorMessage(error) }))
+    const result = await api.mods
+      .replaceFile({
+        slot: slot.id,
+        name: `${slot.label} replacement`,
+        target: settings.value.defaultModTarget
+      })
+      .catch((error: unknown) => ({ ok: false as const, error: errorMessage(error) }))
 
     if (result.ok && result.data) {
       slotResults = { ...slotResults, [slot.id]: result.data }
-      pushToast({ kind: 'success', title: `${slot.label} replaced`, message: result.data.relativePath })
+      pushToast({
+        kind: 'success',
+        title: `${slot.label} replaced`,
+        message: result.data.relativePath
+      })
       await load()
     } else {
       pushToast({ kind: 'warning', title: 'That file was not accepted', message: result.error })
@@ -127,7 +133,11 @@
       .catch((error: unknown) => ({ ok: false as const, error: errorMessage(error) }))
 
     if (result.ok && result.data) {
-      pushToast({ kind: 'success', title: 'Cursor set created', message: 'Enable it in the library list.' })
+      pushToast({
+        kind: 'success',
+        title: 'Cursor set created',
+        message: 'Enable it in the library list.'
+      })
       await load()
     } else {
       pushToast({ kind: 'warning', title: 'Cursor set not created', message: result.error })
@@ -139,7 +149,11 @@
     try {
       community = await api.mods.communityIndex({ refresh, query: communityQuery || undefined })
     } catch (error) {
-      pushToast({ kind: 'warning', title: 'The community list is unavailable', message: errorMessage(error) })
+      pushToast({
+        kind: 'warning',
+        title: 'The community list is unavailable',
+        message: errorMessage(error)
+      })
     } finally {
       communityBusy = false
     }
@@ -669,7 +683,12 @@
   description="Every mod is a folder of client files. Player, Studio or both decides which install it lands in; the order decides who wins a shared path."
 >
   {#snippet actions()}
-    <button type="button" class="btn-secondary gap-1.5" disabled={working} onclick={() => void applyNow()}>
+    <button
+      type="button"
+      class="btn-secondary gap-1.5"
+      disabled={working}
+      onclick={() => void applyNow()}
+    >
       <Icon name={working ? 'spinner' : 'zap'} size={13} />
       Apply now
     </button>
@@ -791,7 +810,11 @@
           </p>
         </div>
 
-        <button type="button" class="btn-secondary shrink-0 gap-1.5 text-xs" onclick={() => void createCursorSet()}>
+        <button
+          type="button"
+          class="btn-secondary shrink-0 gap-1.5 text-xs"
+          onclick={() => void createCursorSet()}
+        >
           <Icon name="plus" size={13} />
           Create a set
         </button>
@@ -843,7 +866,12 @@
           {#each visibleCommunity as mod (mod.id)}
             <li class="flex items-start gap-3 py-3">
               {#if mod.previewUrl}
-                <img src={mod.previewUrl} alt="" class="h-10 w-14 shrink-0 rounded object-cover" loading="lazy" />
+                <img
+                  src={mod.previewUrl}
+                  alt=""
+                  class="h-10 w-14 shrink-0 rounded object-cover"
+                  loading="lazy"
+                />
               {/if}
 
               <span class="min-w-0 flex-1">
@@ -854,7 +882,9 @@
                     <span class="chip">{formatBytes(mod.sizeBytes)}</span>
                   {/if}
                 </span>
-                <span class="mt-0.5 block text-2xs leading-relaxed text-ivory-500">{mod.description}</span>
+                <span class="mt-0.5 block text-2xs leading-relaxed text-ivory-500"
+                  >{mod.description}</span
+                >
                 <span class="mt-0.5 block text-2xs text-ivory-600">
                   by {mod.author} · v{mod.version}
                   {#if mod.sha256}· checksum verified on install{/if}
@@ -883,7 +913,8 @@
         <input
           class="field w-full py-1.5 font-mono text-2xs"
           value={settings.value.communityModIndexUrl}
-          onblur={(event) => void updateSettings({ communityModIndexUrl: event.currentTarget.value })}
+          onblur={(event) =>
+            void updateSettings({ communityModIndexUrl: event.currentTarget.value })}
         />
       </SettingRow>
     </div>
@@ -979,7 +1010,12 @@
 
     <div class="mt-5 flex justify-end gap-2">
       <button type="button" class="btn-ghost" onclick={() => (richOpen = false)}>Cancel</button>
-      <button type="button" class="btn-primary" disabled={working} onclick={() => void generateRich()}>
+      <button
+        type="button"
+        class="btn-primary"
+        disabled={working}
+        onclick={() => void generateRich()}
+      >
         Generate mod
       </button>
     </div>

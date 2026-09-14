@@ -90,7 +90,11 @@
   }
 </script>
 
-<div class="fixed inset-0 z-50 flex items-center justify-center p-6" role="dialog" aria-modal="true">
+<div
+  class="fixed inset-0 z-50 flex items-center justify-center p-6"
+  role="dialog"
+  aria-modal="true"
+>
   <div class="absolute inset-0 bg-ink-950/80 backdrop-blur-sm"></div>
 
   <div class="surface relative w-full max-w-xl overflow-hidden p-0 animate-fade-up">
@@ -99,19 +103,27 @@
 
     <div class="p-6">
       <div class="flex items-start gap-3">
-        <span class="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full border border-gold-500/30 text-gold-300">
+        <span
+          class="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full border border-gold-500/30 text-gold-300"
+        >
           <Icon name={step.icon} size={16} />
         </span>
 
         <div class="min-w-0">
           <h2 class="display text-xl">{step.title}</h2>
-          <p class="mt-1.5 text-xs leading-relaxed text-ivory-400 text-balance-pretty">{step.body}</p>
+          <p class="mt-1.5 text-xs leading-relaxed text-ivory-400 text-balance-pretty">
+            {step.body}
+          </p>
         </div>
       </div>
 
       {#if index === 1}
         <div class="mt-4 flex flex-wrap gap-2">
-          <button type="button" class="btn-secondary gap-1.5 text-xs" onclick={() => openPage('accounts')}>
+          <button
+            type="button"
+            class="btn-secondary gap-1.5 text-xs"
+            onclick={() => openPage('accounts')}
+          >
             <Icon name="user" size={14} />
             Open Accounts
           </button>
@@ -125,12 +137,17 @@
               type="checkbox"
               class="h-3.5 w-3.5 accent-[var(--color-gold-400)]"
               checked={settings.value.reduceMotion}
-              onchange={(event) => void updateSettings({ reduceMotion: event.currentTarget.checked })}
+              onchange={(event) =>
+                void updateSettings({ reduceMotion: event.currentTarget.checked })}
             />
             Calm the animations
           </label>
 
-          <button type="button" class="btn-ghost gap-1.5 text-xs" onclick={() => openPage('appearance')}>
+          <button
+            type="button"
+            class="btn-ghost gap-1.5 text-xs"
+            onclick={() => openPage('appearance')}
+          >
             <Icon name="palette" size={14} />
             Choose a theme and artwork
           </button>
@@ -144,7 +161,8 @@
               type="checkbox"
               class="h-3.5 w-3.5 accent-[var(--color-gold-400)]"
               checked={!settings.value.disableUpdates}
-              onchange={(event) => void updateSettings({ disableUpdates: !event.currentTarget.checked })}
+              onchange={(event) =>
+                void updateSettings({ disableUpdates: !event.currentTarget.checked })}
             />
             Check for updates to RemielleStrap automatically
           </label>
@@ -154,22 +172,31 @@
 
     <footer class="flex items-center justify-between gap-3 border-t border-ivory-200/8 px-6 py-4">
       <div class="flex items-center gap-1.5" aria-hidden="true">
-        {#each steps as _, dot (dot)}
+        {#each steps.keys() as dot (dot)}
           <span
-            class="h-1 w-4 rounded-full transition-colors {dot === index ? 'bg-gold-400/80' : 'bg-ivory-200/12'}"
+            class="h-1 w-4 rounded-full transition-colors {dot === index
+              ? 'bg-gold-400/80'
+              : 'bg-ivory-200/12'}"
           ></span>
         {/each}
       </div>
 
       <div class="flex items-center gap-2">
-        <button type="button" class="btn-ghost text-xs" onclick={() => void finish()}>Skip the tour</button>
+        <button type="button" class="btn-ghost text-xs" onclick={() => void finish()}
+          >Skip the tour</button
+        >
 
         {#if !last}
           <button type="button" class="btn-primary text-xs" onclick={() => (index += 1)}>
             Next
           </button>
         {:else}
-          <button type="button" class="btn-primary text-xs" disabled={finishing} onclick={() => void finish()}>
+          <button
+            type="button"
+            class="btn-primary text-xs"
+            disabled={finishing}
+            onclick={() => void finish()}
+          >
             Start using RemielleStrap
           </button>
         {/if}

@@ -505,7 +505,11 @@ export function setPlaying(activity: ActivityEntry, extras: { playtimeMs?: numbe
       ? `${formatPlaytime(extras.playtimeMs)} this session`
       : null
 
-  const state = playtimeLine ?? (settings.showAccountOnRpc ? serverTypeLine : undefined) ?? accountLine ?? undefined
+  const state =
+    playtimeLine ??
+    (settings.showAccountOnRpc ? serverTypeLine : undefined) ??
+    accountLine ??
+    undefined
 
   inGame = true
   override = null
@@ -642,7 +646,11 @@ export function setStudioPresence(report: {
   placeId: string | null
   scriptName: string | null
 }): void {
-  studio = { placeName: report.placeName, placeId: report.placeId, since: studio?.since ?? Date.now() }
+  studio = {
+    placeName: report.placeName,
+    placeId: report.placeId,
+    since: studio?.since ?? Date.now()
+  }
 
   if (!enabled || inGame) return
   setIdle()

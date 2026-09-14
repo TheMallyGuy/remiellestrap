@@ -1,7 +1,13 @@
 import { createReadStream } from 'fs'
 import { readdir, stat } from 'fs/promises'
 import { join } from 'path'
-import type { ClientLogEvent, LogFileInfo, LogLine, LogReadRequest, LogReadResult } from '@shared/models'
+import type {
+  ClientLogEvent,
+  LogFileInfo,
+  LogLine,
+  LogReadRequest,
+  LogReadResult
+} from '@shared/models'
 import { createLogger } from '../utils/logger'
 import { paths, robloxLogsDirectory } from '../utils/paths'
 import { pathExists } from '../utils/fs'
@@ -147,23 +153,32 @@ export async function readLog(request: ReadOptions = {}): Promise<LogReadResult>
     return { file: null, lines: [], error: 'There are no log files to show yet' }
   }
 
-  const info = await listLogFiles().then((files) => files.find((file) => file.path === target) ?? null)
+  const info = await listLogFiles().then(
+    (files) => files.find((file) => file.path === target) ?? null
+  )
 
-  const file: LogFileInfo =
-    info ?? {
-      name: target.split(/[\\/]/).pop() ?? 'log',
-      path: target,
-      size: await stat(target).then((value) => value.size).catch(() => 0),
-      modifiedAt: await stat(target).then((value) => value.mtimeMs).catch(() => 0),
-      kind: target.startsWith(paths.logs) ? 'strap' : 'roblox'
-    }
+  const file: LogFileInfo = info ?? {
+    name: target.split(/[\\/]/).pop() ?? 'log',
+    path: target,
+    size: await stat(target)
+      .then((value) => value.size)
+      .catch(() => 0),
+    modifiedAt: await stat(target)
+      .then((value) => value.mtimeMs)
+      .catch(() => 0),
+    kind: target.startsWith(paths.logs) ? 'strap' : 'roblox'
+  }
 
   const tail = Math.min(Math.max(request.tailLines ?? DEFAULT_TAIL, 1), MAX_TAIL)
 
   try {
     // Read a slice, then keep the last `tail` lines. A byte estimate is used
     // rather than reading the whole file, which can be tens of megabytes.
-    const { text, complete } = await readTail(file.path, Math.max(64 * 1024, tail * 220), request.from)
+    const { text, complete } = await readTail(
+      file.path,
+      Math.max(64 * 1024, tail * 220),
+      request.from
+    )
 
     let lines = text.split(/\r?\n/)
 
@@ -259,7 +274,11 @@ export function parseClientEvents(lines: string[], limit = 300): ClientLogEvent[
   let placeId: string | null = null
   let jobId: string | null = null
 
-  const push = (kind: ClientLogEvent['kind'], text: string, extra: Partial<ClientLogEvent> = {}): void => {
+  const push = (
+    kind: ClientLogEvent['kind'],
+    text: string,
+    extra: Partial<ClientLogEvent> = {}
+  ): void => {
     events.push({ kind, at: Date.now(), text, placeId, jobId, player: null, ...extra })
   }
 
@@ -305,7 +324,9 @@ export function parseClientEvents(lines: string[], limit = 300): ClientLogEvent[
   return events.slice(-limit)
 }
 
-export async function clientEvents(request: { path?: string; tailLines?: number } = {}): Promise<ClientLogEvent[]> {
+export async function clientEvents(
+  request: { path?: string; tailLines?: number } = {}
+): Promise<ClientLogEvent[]> {
   const result = await readLog({ path: request.path, tailLines: request.tailLines ?? 1200 })
   if (!result.file) return []
 

@@ -190,17 +190,15 @@ const api = {
     list: (): Promise<RobloxAccount[]> => invoke('accounts:list'),
     addFromCookie: (request: AccountAddRequest): Promise<OperationResult<AccountState>> =>
       invoke('accounts:addFromCookie', request),
-    browserLogin: (
-      request?: AccountBrowserLoginRequest
-    ): Promise<OperationResult<AccountState>> => invoke('accounts:browserLogin', request),
+    browserLogin: (request?: AccountBrowserLoginRequest): Promise<OperationResult<AccountState>> =>
+      invoke('accounts:browserLogin', request),
     reauthenticate: (id: string): Promise<OperationResult<AccountState>> =>
       invoke('accounts:reauthenticate', { id }),
-    remove: (id: string): Promise<OperationResult<AccountState>> => invoke('accounts:remove', { id }),
+    remove: (id: string): Promise<OperationResult<AccountState>> =>
+      invoke('accounts:remove', { id }),
     setActive: (id: string | null): Promise<AccountState> => invoke('accounts:setActive', { id }),
-    refresh: (request?: {
-      id?: string
-      profile?: boolean
-    }): Promise<AccountState> => invoke('accounts:refresh', request),
+    refresh: (request?: { id?: string; profile?: boolean }): Promise<AccountState> =>
+      invoke('accounts:refresh', request),
     getProfile: (request: AccountProfileRequest): Promise<OperationResult<AccountProfile>> =>
       invoke('accounts:getProfile', request),
     getFriends: (accountId: string, refresh = false): Promise<OperationResult<AccountFriend[]>> =>
@@ -211,7 +209,8 @@ const api = {
       invoke('accounts:getGameDetails', request),
     getGameList: (request: GameListRequest): Promise<OperationResult<GameSummary[]>> =>
       invoke('accounts:getGameList', request),
-    joinAs: (request: JoinAsRequest): Promise<BootstrapperResult> => invoke('accounts:joinAs', request),
+    joinAs: (request: JoinAsRequest): Promise<BootstrapperResult> =>
+      invoke('accounts:joinAs', request),
     updateNotes: (id: string, notes: string): Promise<AccountState> =>
       invoke('accounts:updateNotes', { id, notes })
   },
@@ -219,7 +218,8 @@ const api = {
   servers: {
     list: (request: ServerListRequest = {}): Promise<ServerListResult> =>
       invoke('servers:list', request),
-    join: (request: ServerJoinRequest): Promise<ServerJoinResult> => invoke('servers:join', request),
+    join: (request: ServerJoinRequest): Promise<ServerJoinResult> =>
+      invoke('servers:join', request),
     ping: (
       placeId: string,
       servers: { id: string; datacenter: string | null }[]
@@ -228,7 +228,8 @@ const api = {
 
   bootstrapper: {
     checkUpdate: (): Promise<UpdateCheckResult> => invoke('bootstrapper:checkUpdate'),
-    install: (force?: boolean): Promise<BootstrapperResult> => invoke('bootstrapper:install', { force }),
+    install: (force?: boolean): Promise<BootstrapperResult> =>
+      invoke('bootstrapper:install', { force }),
     launch: (request?: LaunchRequest): Promise<BootstrapperResult> =>
       invoke('bootstrapper:launch', request),
     cancel: (): Promise<OperationResult> => invoke('bootstrapper:cancel'),
@@ -302,11 +303,13 @@ const api = {
     openFolder: (id?: string): Promise<OperationResult> => invoke('mods:openFolder', { id }),
     generateColorMod: (request: ColorModRequest): Promise<OperationResult<ModEntry[]>> =>
       invoke('mods:generateColorMod', request),
-    setTarget: (request: ModTargetRequest): Promise<ModEntry[]> => invoke('mods:setTarget', request),
+    setTarget: (request: ModTargetRequest): Promise<ModEntry[]> =>
+      invoke('mods:setTarget', request),
     generateRichMod: (request: RichModRequest): Promise<OperationResult<ModEntry[]>> =>
       invoke('mods:generateRichMod', request),
-    replaceFile: (request: FileReplacementRequest): Promise<OperationResult<FileReplacementResult>> =>
-      invoke('mods:replaceFile', request),
+    replaceFile: (
+      request: FileReplacementRequest
+    ): Promise<OperationResult<FileReplacementResult>> => invoke('mods:replaceFile', request),
     createCursorSet: (request: CursorSetRequest): Promise<OperationResult<ModEntry[]>> =>
       invoke('mods:createCursorSet', request),
     communityIndex: (request?: { refresh?: boolean; query?: string }): Promise<CommunityIndex> =>
@@ -319,7 +322,8 @@ const api = {
   },
 
   cleaner: {
-    scan: (targets?: CleanerCategory[]): Promise<CleanerScan> => invoke('cleaner:scan', { targets }),
+    scan: (targets?: CleanerCategory[]): Promise<CleanerScan> =>
+      invoke('cleaner:scan', { targets }),
     run: (request: CleanerRunRequest): Promise<CleanerResult> => invoke('cleaner:run', request),
     history: (): Promise<CleanerHistoryEntry[]> => invoke('cleaner:history')
   },
@@ -357,7 +361,8 @@ const api = {
 
   tweaks: {
     getProcessState: (): Promise<ProcessTweakState> => invoke('tweaks:getProcessState'),
-    apply: (request: ProcessTweakRequest): Promise<ProcessTweakState> => invoke('tweaks:apply', request),
+    apply: (request: ProcessTweakRequest): Promise<ProcessTweakState> =>
+      invoke('tweaks:apply', request),
     listPowerPlans: (): Promise<PowerPlan[]> => invoke('tweaks:listPowerPlans'),
     setPowerPlan: (guid: string): Promise<OperationResult<PowerPlan[]>> =>
       invoke('tweaks:setPowerPlan', { guid })

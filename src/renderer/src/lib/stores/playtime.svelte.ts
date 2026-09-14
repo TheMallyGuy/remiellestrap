@@ -10,7 +10,13 @@ import { pushToast } from './toasts.svelte'
  * `playtime:update` push event rather than by polling.
  */
 
-const EMPTY: PlaytimeSummary = { totalMs: 0, sessions: 0, firstLaunchAt: null, games: [], currentSessionMs: null }
+const EMPTY: PlaytimeSummary = {
+  totalMs: 0,
+  sessions: 0,
+  firstLaunchAt: null,
+  games: [],
+  currentSessionMs: null
+}
 
 let current = $state<PlaytimeSummary>({ ...EMPTY })
 

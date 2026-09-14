@@ -42,7 +42,11 @@ function directoriesFor(id: CleanerCategory): string[] {
     case 'roblox-logs':
       return [robloxCleanablePaths.logs, robloxCleanablePaths.logsArchive]
     case 'roblox-crash-dumps':
-      return [robloxCleanablePaths.crashDumps, robloxCleanablePaths.archives, robloxCleanablePaths.analytics]
+      return [
+        robloxCleanablePaths.crashDumps,
+        robloxCleanablePaths.archives,
+        robloxCleanablePaths.analytics
+      ]
     case 'roblox-cache':
       return [robloxCleanablePaths.cache, robloxCleanablePaths.http]
     case 'roblox-temp':
@@ -257,7 +261,10 @@ export async function run(request: CleanerRunRequest): Promise<CleanerResult> {
   if (!dryRun) {
     const entries = await loadState().then((state) => state.cleanerHistory)
     await saveState({
-      cleanerHistory: [{ ...result, trigger: 'manual' as const }, ...entries].slice(0, RATE_LIMIT_ENTRIES),
+      cleanerHistory: [{ ...result, trigger: 'manual' as const }, ...entries].slice(
+        0,
+        RATE_LIMIT_ENTRIES
+      ),
       lastCleanerRunAt: result.ranAt
     })
 
@@ -377,12 +384,9 @@ export function scheduleTimer(): void {
 
   const dueMinutes = settings.cleanerSchedule === 'daily' ? 60 : 6 * 60
 
-  scheduledTick = setInterval(
-    () => {
-      void runScheduledIfDue(intervalMs, dueMinutes)
-    },
-    60 * 60_000
-  )
+  scheduledTick = setInterval(() => {
+    void runScheduledIfDue(intervalMs, dueMinutes)
+  }, 60 * 60_000)
 
   // Also check shortly after start-up so a missed window is not missed for a
   // whole extra day.

@@ -231,7 +231,10 @@ export function buildTicketUri(
   placeId: string | null,
   gameInstanceId?: string | null,
   accessCode?: string | null,
-  locales: { robloxLocale: string; gameLocale: string } = { robloxLocale: 'en_us', gameLocale: 'en_us' }
+  locales: { robloxLocale: string; gameLocale: string } = {
+    robloxLocale: 'en_us',
+    gameLocale: 'en_us'
+  }
 ): string {
   const pairs: string[] = ['roblox-player:1']
 

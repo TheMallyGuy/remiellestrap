@@ -80,7 +80,11 @@ async function launchFromShortcut(args: ShortcutArguments): Promise<void> {
     })
 
     showBootstrapperWindow()
-    const result = await runBootstrapper({ launch: true, rawUri: resolved.uri, accountId: resolved.accountId })
+    const result = await runBootstrapper({
+      launch: true,
+      rawUri: resolved.uri,
+      accountId: resolved.accountId
+    })
 
     if (!result.ok) logger.warn(`Shortcut launch failed: ${result.message}`)
   } catch (error) {

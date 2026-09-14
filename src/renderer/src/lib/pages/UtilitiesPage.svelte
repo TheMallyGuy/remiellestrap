@@ -161,13 +161,15 @@
     selectedLog = path
     await stopFollowing()
 
-    const result = await safeInvoke(
-      () => api.logs.read({ path, tailLines: 500 }),
-      { file: null, lines: [], error: null }
-    )
+    const result = await safeInvoke(() => api.logs.read({ path, tailLines: 500 }), {
+      file: null,
+      lines: [],
+      error: null
+    })
 
     lines = result.lines
-    if (result.error) pushToast({ kind: 'warning', title: 'Could not read that log', message: result.error })
+    if (result.error)
+      pushToast({ kind: 'warning', title: 'Could not read that log', message: result.error })
 
     events = await safeInvoke(() => api.logs.events({ path, tailLines: 4000 }), [])
   }
@@ -176,7 +178,13 @@
     if (!selectedLog) return
 
     const result = await safeInvoke(
-      () => api.logs.read({ path: selectedLog ?? undefined, tailLines: 200, filter: logFilter || undefined, follow: true }),
+      () =>
+        api.logs.read({
+          path: selectedLog ?? undefined,
+          tailLines: 200,
+          filter: logFilter || undefined,
+          follow: true
+        }),
       { file: null, lines: [], error: null }
     )
 
@@ -194,7 +202,12 @@
     if (!selectedLog) return
 
     const result = await safeInvoke(
-      () => api.logs.read({ path: selectedLog ?? undefined, tailLines: 800, filter: logFilter || undefined }),
+      () =>
+        api.logs.read({
+          path: selectedLog ?? undefined,
+          tailLines: 800,
+          filter: logFilter || undefined
+        }),
       { file: null, lines: [], error: null }
     )
 
@@ -205,7 +218,8 @@
 
   async function loadClientSettings(): Promise<void> {
     clientSettings = await safeInvoke(() => api.clientSettings.read(), null)
-    if (clientSettings) clientDraft = { ...clientSettings.values } as Record<string, number | string | boolean>
+    if (clientSettings)
+      clientDraft = { ...clientSettings.values } as Record<string, number | string | boolean>
   }
 
   async function saveClientSettings(): Promise<void> {
@@ -224,12 +238,22 @@
 
     clientBusy = true
     try {
-      const next = await api.clientSettings.write(patch as Record<string, number | string | boolean>)
+      const next = await api.clientSettings.write(
+        patch as Record<string, number | string | boolean>
+      )
       clientSettings = next
       clientDraft = { ...next.values } as Record<string, number | string | boolean>
-      pushToast({ kind: 'success', title: 'Client settings saved', message: 'Applied on the next launch.' })
+      pushToast({
+        kind: 'success',
+        title: 'Client settings saved',
+        message: 'Applied on the next launch.'
+      })
     } catch (error) {
-      pushToast({ kind: 'error', title: 'Could not write the settings file', message: errorMessage(error) })
+      pushToast({
+        kind: 'error',
+        title: 'Could not write the settings file',
+        message: errorMessage(error)
+      })
     } finally {
       clientBusy = false
     }
@@ -336,12 +360,18 @@
         const summary = [
           result.data.settings ? 'settings' : null,
           result.data.accounts > 0 ? `${result.data.accounts} account(s)` : null,
-          result.data.flagProfiles.length > 0 ? `${result.data.flagProfiles.length} flag profile(s)` : null
+          result.data.flagProfiles.length > 0
+            ? `${result.data.flagProfiles.length} flag profile(s)`
+            : null
         ]
           .filter(Boolean)
           .join(', ')
 
-        pushToast({ kind: 'success', title: 'Backup imported', message: summary || 'Nothing to apply' })
+        pushToast({
+          kind: 'success',
+          title: 'Backup imported',
+          message: summary || 'Nothing to apply'
+        })
 
         for (const note of result.data.skipped) {
           pushToast({ kind: 'info', title: 'Skipped', message: note })
@@ -364,7 +394,12 @@
 
   async function importFrom(id: StrapDetection['id']): Promise<void> {
     try {
-      const result = await api.straps.import({ id, settings: true, flagProfiles: true, mods: false })
+      const result = await api.straps.import({
+        id,
+        settings: true,
+        flagProfiles: true,
+        mods: false
+      })
       if (result.ok && result.data) {
         pushToast({
           kind: 'success',
@@ -455,7 +490,9 @@
 
               <span class="shrink-0 text-right">
                 <span class="block text-xs text-ivory-300">{formatBytes(target.bytes)}</span>
-                <span class="block text-2xs text-ivory-600">{target.fileCount.toLocaleString()} files</span>
+                <span class="block text-2xs text-ivory-600"
+                  >{target.fileCount.toLocaleString()} files</span
+                >
               </span>
             </li>
           {/each}
@@ -472,7 +509,12 @@
             {dryRun ? 'Count what would go' : 'Clean selected'}
           </button>
 
-          <button type="button" class="btn-ghost gap-1.5" disabled={scanning} onclick={() => void refreshScan()}>
+          <button
+            type="button"
+            class="btn-ghost gap-1.5"
+            disabled={scanning}
+            onclick={() => void refreshScan()}
+          >
             <Icon name={scanning ? 'spinner' : 'refresh'} size={14} />
             Rescan
           </button>
@@ -487,7 +529,11 @@
           </label>
         </div>
       {:else}
-        <EmptyState icon="broom" title="Nothing to scan yet" message="Run a scan to see what is taking up space." />
+        <EmptyState
+          icon="broom"
+          title="Nothing to scan yet"
+          message="Run a scan to see what is taking up space."
+        />
       {/if}
     </div>
   </Section>
@@ -495,7 +541,10 @@
   <div class="h-5"></div>
 
   <Section title="Schedule" description="Run the cleaner on its own, so the folders never pile up.">
-    <SettingRow title="When to clean" description="Scheduled runs use the selection above at the time they run.">
+    <SettingRow
+      title="When to clean"
+      description="Scheduled runs use the selection above at the time they run."
+    >
       <Select
         value={settings.value.cleanerSchedule}
         options={[
@@ -505,8 +554,7 @@
           { value: 'weekly', label: 'Once a week' }
         ]}
         onchange={(value) =>
-          void updateSettings({ cleanerSchedule: value as typeof settings.value.cleanerSchedule })
-        }
+          void updateSettings({ cleanerSchedule: value as typeof settings.value.cleanerSchedule })}
       />
     </SettingRow>
 
@@ -532,7 +580,9 @@
             <button
               type="button"
               class="w-full rounded-control px-2 py-1.5 text-left text-2xs transition-colors
-                {file.path === selectedLog ? 'bg-ivory-100/7 text-ivory-100' : 'text-ivory-400 hover:bg-ivory-100/4'}"
+                {file.path === selectedLog
+                ? 'bg-ivory-100/7 text-ivory-100'
+                : 'text-ivory-400 hover:bg-ivory-100/4'}"
               onclick={() => void selectLog(file.path)}
             >
               <span class="block truncate">{file.name}</span>
@@ -562,12 +612,20 @@
             }}
           />
 
-          <button type="button" class="btn-secondary px-2.5 py-1 text-2xs" onclick={() => void applyFilter()}>
+          <button
+            type="button"
+            class="btn-secondary px-2.5 py-1 text-2xs"
+            onclick={() => void applyFilter()}
+          >
             Filter
           </button>
 
           {#if following}
-            <button type="button" class="btn-secondary gap-1.5 px-2.5 py-1 text-2xs" onclick={() => void stopFollowing()}>
+            <button
+              type="button"
+              class="btn-secondary gap-1.5 px-2.5 py-1 text-2xs"
+              onclick={() => void stopFollowing()}
+            >
               <Icon name="spinner" size={12} />
               Following — stop
             </button>
@@ -596,12 +654,13 @@
 
         <pre
           class="surface-inset h-80 overflow-auto p-2.5 font-mono text-[0.6875rem] leading-relaxed"
-          data-selectable
-        >{#each lines as line, index (index)}
-{formatDateTime(line.at)} {line.level ?? ''} > <span class={logLineTone(line)}>{line.text}</span>
-        {/each}{#if lines.length === 0}
-No lines to show.
-        {/if}</pre>
+          data-selectable>{#each lines as line, index (index)}
+            {formatDateTime(line.at)} {line.level ?? ''} > <span class={logLineTone(line)}
+              >{line.text}</span
+            >
+          {/each}{#if lines.length === 0}
+            No lines to show.
+          {/if}</pre>
 
         {#if events.length > 0}
           <div class="mt-3">
@@ -658,7 +717,10 @@ No lines to show.
                 step={field.step ?? 1}
                 value={Number(clientDraft[field.key] ?? 0)}
                 oninput={(event) =>
-                  (clientDraft = { ...clientDraft, [field.key]: Number(event.currentTarget.value) })}
+                  (clientDraft = {
+                    ...clientDraft,
+                    [field.key]: Number(event.currentTarget.value)
+                  })}
               />
             {/if}
           </SettingRow>
@@ -666,7 +728,12 @@ No lines to show.
       </div>
 
       <div class="flex flex-wrap items-center gap-2 border-t border-ivory-200/8 py-3">
-        <button type="button" class="btn-primary gap-1.5" disabled={clientBusy} onclick={() => void saveClientSettings()}>
+        <button
+          type="button"
+          class="btn-primary gap-1.5"
+          disabled={clientBusy}
+          onclick={() => void saveClientSettings()}
+        >
           <Icon name={clientBusy ? 'spinner' : 'save'} size={14} />
           Save changes
         </button>
@@ -698,7 +765,9 @@ No lines to show.
     <SettingRow
       title="Priority"
       description="Higher priority can help on a busy machine, but takes CPU away from everything else."
-      warning={settings.value.processPriority === 'high' ? 'High priority is applied to the client on every launch.' : undefined}
+      warning={settings.value.processPriority === 'high'
+        ? 'High priority is applied to the client on every launch.'
+        : undefined}
     >
       <Select
         value={settings.value.processPriority}
@@ -717,7 +786,10 @@ No lines to show.
 
   <div class="h-5"></div>
 
-  <Section title="Memory" description="Trimming hands unused pages back to Windows while the client runs.">
+  <Section
+    title="Memory"
+    description="Trimming hands unused pages back to Windows while the client runs."
+  >
     <SettingRow
       title="Trim periodically"
       description={`Every ${settings.value.memoryTrimMinutes} minutes while a client is running. It never touches a client that is not responding.`}
@@ -740,23 +812,28 @@ No lines to show.
     </SettingRow>
 
     <SettingRow title="Trim now" description="One immediate trim of whatever client is running.">
-      <button type="button" class="btn-secondary gap-1.5" disabled={!process?.running} onclick={() => void trimNow()}>
+      <button
+        type="button"
+        class="btn-secondary gap-1.5"
+        disabled={!process?.running}
+        onclick={() => void trimNow()}
+      >
         <Icon name="zap" size={14} />
         Trim
       </button>
     </SettingRow>
 
-    <SettingRow
-      title="Working set"
-      description="Current resident size of the client process."
-    >
+    <SettingRow title="Working set" description="Current resident size of the client process.">
       <span class="text-xs text-ivory-300">{formatBytes(process?.workingSetBytes ?? 0)}</span>
     </SettingRow>
   </Section>
 
   <div class="h-5"></div>
 
-  <Section title="Power and graphics" description="Applied before each launch; nothing is changed permanently.">
+  <Section
+    title="Power and graphics"
+    description="Applied before each launch; nothing is changed permanently."
+  >
     <SettingRow
       title="Power plan on launch"
       description="Some machines throttle the client on a balanced plan. Switching to a performance plan while playing can steady the frame rate."
@@ -765,7 +842,10 @@ No lines to show.
         value={settings.value.powerPlanOnLaunch}
         options={[
           { value: '', label: 'Leave it alone' },
-          ...plans.map((plan) => ({ value: plan.guid, label: `${plan.name}${plan.active ? ' (current)' : ''}` }))
+          ...plans.map((plan) => ({
+            value: plan.guid,
+            label: `${plan.name}${plan.active ? ' (current)' : ''}`
+          }))
         ]}
         onchange={(value) => void updateSettings({ powerPlanOnLaunch: value })}
       />
@@ -800,7 +880,8 @@ No lines to show.
           { value: 'high-performance', label: 'High performance' },
           { value: 'power-saving', label: 'Power saving' }
         ]}
-        onchange={(value) => void updateSettings({ gpuPreference: value as typeof settings.value.gpuPreference })}
+        onchange={(value) =>
+          void updateSettings({ gpuPreference: value as typeof settings.value.gpuPreference })}
       />
     </SettingRow>
   </Section>
@@ -821,14 +902,20 @@ No lines to show.
       <Select
         value={shortcutAccount}
         options={[
-          { value: 'active', label: accounts.active ? `${accounts.active.displayName} (active)` : 'None' },
+          {
+            value: 'active',
+            label: accounts.active ? `${accounts.active.displayName} (active)` : 'None'
+          },
           ...accounts.list.map((account) => ({ value: account.id, label: account.displayName }))
         ]}
         onchange={(value) => (shortcutAccount = value)}
       />
     </SettingRow>
 
-    <SettingRow title="Region" description="Written into the shortcut's name so it is obvious which is which.">
+    <SettingRow
+      title="Region"
+      description="Written into the shortcut's name so it is obvious which is which."
+    >
       <Select
         value={shortcutRegion}
         options={[{ value: 'any', label: 'Any region' }, ...REGION_OPTIONS]}
@@ -837,7 +924,12 @@ No lines to show.
     </SettingRow>
 
     <div class="flex items-center justify-end gap-2 py-3">
-      <button type="button" class="btn-primary gap-1.5" disabled={shortcutBusy} onclick={() => void createShortcut()}>
+      <button
+        type="button"
+        class="btn-primary gap-1.5"
+        disabled={shortcutBusy}
+        onclick={() => void createShortcut()}
+      >
         <Icon name={shortcutBusy ? 'spinner' : 'save'} size={14} />
         Create on the desktop
       </button>
@@ -858,7 +950,10 @@ No lines to show.
       <SettingRow title="Playtime" description="Session history and per-game totals.">
         <Switch checked={includePlaytime} onchange={(value) => (includePlaytime = value)} />
       </SettingRow>
-      <SettingRow title="Mod list" description="Which mods were installed. The files themselves stay out, to keep the archive small.">
+      <SettingRow
+        title="Mod list"
+        description="Which mods were installed. The files themselves stay out, to keep the archive small."
+      >
         <Switch checked={includeMods} onchange={(value) => (includeMods = value)} />
       </SettingRow>
       <SettingRow
@@ -869,7 +964,10 @@ No lines to show.
       </SettingRow>
 
       {#if includeAccounts}
-        <SettingRow title="Passphrase" description="Needed again to import the accounts. It is not stored anywhere.">
+        <SettingRow
+          title="Passphrase"
+          description="Needed again to import the accounts. It is not stored anywhere."
+        >
           <input
             type="password"
             class="field w-56 py-1.5 text-xs"
@@ -881,7 +979,12 @@ No lines to show.
     </div>
 
     <div class="flex items-center justify-end gap-2 border-t border-ivory-200/8 py-3">
-      <button type="button" class="btn-primary gap-1.5" disabled={backupBusy} onclick={() => void exportBackup()}>
+      <button
+        type="button"
+        class="btn-primary gap-1.5"
+        disabled={backupBusy}
+        onclick={() => void exportBackup()}
+      >
         <Icon name={backupBusy ? 'spinner' : 'save'} size={14} />
         Write archive
       </button>
@@ -918,7 +1021,9 @@ No lines to show.
       {#each detections as detection (detection.id)}
         <SettingRow
           title={detection.name}
-          description={detection.detected ? (detection.detail ?? 'Found on this machine') : 'Not installed'}
+          description={detection.detected
+            ? (detection.detail ?? 'Found on this machine')
+            : 'Not installed'}
         >
           <button
             type="button"
@@ -952,7 +1057,12 @@ No lines to show.
 
     <div class="mt-4 flex justify-end gap-2">
       <button type="button" class="btn-ghost" onclick={() => (confirmClean = false)}>Cancel</button>
-      <button type="button" class="btn-danger" disabled={cleaning} onclick={() => void runCleaner()}>
+      <button
+        type="button"
+        class="btn-danger"
+        disabled={cleaning}
+        onclick={() => void runCleaner()}
+      >
         Delete {formatBytes(selectedBytes)}
       </button>
     </div>
@@ -966,8 +1076,11 @@ No lines to show.
     onclose={() => (confirmImport = false)}
   >
     <div class="mt-4 flex justify-end gap-2">
-      <button type="button" class="btn-ghost" onclick={() => (confirmImport = false)}>Cancel</button>
-      <button type="button" class="btn-primary" onclick={() => void importBackup()}>Choose archive</button>
+      <button type="button" class="btn-ghost" onclick={() => (confirmImport = false)}>Cancel</button
+      >
+      <button type="button" class="btn-primary" onclick={() => void importBackup()}
+        >Choose archive</button
+      >
     </div>
   </Dialog>
 {/if}

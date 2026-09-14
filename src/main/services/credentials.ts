@@ -115,7 +115,9 @@ export async function hasSecret(id: string): Promise<boolean> {
 export async function listSecrets(): Promise<string[]> {
   try {
     const entries = await readdir(paths.credentials)
-    return entries.filter((entry) => entry.endsWith('.bin')).map((entry) => entry.replace(/\.bin$/, ''))
+    return entries
+      .filter((entry) => entry.endsWith('.bin'))
+      .map((entry) => entry.replace(/\.bin$/, ''))
   } catch {
     return []
   }

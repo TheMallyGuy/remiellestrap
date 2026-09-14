@@ -193,18 +193,28 @@
     await Promise.all([loadSettings(), syncProgress()])
     if (showArt) void loadArt('bootstrapper')
   }
+
+  /**
+   * A custom launcher definition may carry its own CSS. It is applied as text
+   * on a `<style>` element rather than injected as markup, so nothing in the
+   * definition can ever be parsed as HTML.
+   */
+  $effect(() => {
+    const css = theme.css
+    if (!css) return
+
+    const element = document.createElement('style')
+    element.textContent = css
+    document.head.appendChild(element)
+
+    return () => element.remove()
+  })
 </script>
 
 <svelte:head>
   <title
     >{stage === 'launching' || stage === 'running' ? 'Launching' : 'Installing'} Roblox — RemielleStrap</title
   >
-
-  {#if theme.css}
-    <!-- A custom launcher may bring its own rules; they are scoped to this
-         window and applied last so they can override anything above. -->
-    {@html `<style>${theme.css}</style>`}
-  {/if}
 </svelte:head>
 
 <div
@@ -276,7 +286,8 @@
             class="mb-1 text-2xs font-medium uppercase tracking-[0.18em]"
             style="color: {theme.accent}; opacity: 0.8"
           >
-            {custom?.title ?? (stage === 'launching' || stage === 'running' ? 'Launching' : 'Roblox setup')}
+            {custom?.title ??
+              (stage === 'launching' || stage === 'running' ? 'Launching' : 'Roblox setup')}
           </p>
           <h1 class="display truncate text-[1.75rem] leading-none" style="color: {theme.text}">
             {label}
@@ -372,7 +383,9 @@
             <button
               type="button"
               class="rounded px-3 py-1.5 text-xs font-medium transition-opacity hover:opacity-90"
-              style="background: {theme.accent}; color: {theme.light ? '#ffffff' : theme.background}"
+              style="background: {theme.accent}; color: {theme.light
+                ? '#ffffff'
+                : theme.background}"
               onclick={() => void api.window.close()}
             >
               {finished ? 'Done' : 'Close'}

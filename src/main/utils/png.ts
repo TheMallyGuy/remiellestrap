@@ -41,7 +41,9 @@ export function parseHex(hex: string): Rgb {
 
 export function toHex({ r, g, b }: Rgb): string {
   const part = (channel: number): string =>
-    Math.max(0, Math.min(255, Math.round(channel))).toString(16).padStart(2, '0')
+    Math.max(0, Math.min(255, Math.round(channel)))
+      .toString(16)
+      .padStart(2, '0')
   return `#${part(r)}${part(g)}${part(b)}`
 }
 

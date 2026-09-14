@@ -222,9 +222,7 @@
 
     const apply = (): void => {
       const light =
-        theme === 'light' ||
-        theme === 'ivory-cathedral' ||
-        (theme === 'system' && media.matches)
+        theme === 'light' || theme === 'ivory-cathedral' || (theme === 'system' && media.matches)
 
       root.classList.toggle('theme-light', light)
       root.style.colorScheme = light ? 'light' : 'dark'

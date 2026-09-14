@@ -16,6 +16,18 @@ export default defineConfig(
     }
   },
   {
+    // Runes modules are TypeScript, not Svelte components: the Svelte parser
+    // only reads the component syntax, so hand these to typescript-eslint.
+    files: ['**/*.svelte.ts', '**/*.svelte.js'],
+    languageOptions: {
+      parser: tseslint.parser,
+      parserOptions: {
+        projectService: false,
+        sourceType: 'module'
+      }
+    }
+  },
+  {
     files: ['**/*.{tsx,svelte}'],
     rules: {
       'svelte/no-unused-svelte-ignore': 'off'

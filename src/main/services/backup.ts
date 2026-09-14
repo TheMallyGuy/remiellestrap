@@ -189,11 +189,15 @@ export async function exportBackup(request: BackupRequest): Promise<OperationRes
   }
 }
 
-export async function importBackup(archive: string, password: string): Promise<OperationResult<BackupImportResult>> {
+export async function importBackup(
+  archive: string,
+  password: string
+): Promise<OperationResult<BackupImportResult>> {
   const staging = join(paths.cache, 'import', sanitizeName(Date.now().toString(36), 'import'))
 
   try {
-    if (!(await pathExists(archive))) return { ok: false, error: 'That backup file no longer exists' }
+    if (!(await pathExists(archive)))
+      return { ok: false, error: 'That backup file no longer exists' }
 
     await ensureDir(staging)
     await extractZip(archive, staging)
@@ -250,7 +254,8 @@ export async function importBackup(archive: string, password: string): Promise<O
           playtime: {
             totalMs: Number(document.totalMs ?? 0),
             sessions: Number(document.sessions ?? 0),
-            firstLaunchAt: typeof document.firstLaunchAt === 'number' ? document.firstLaunchAt : null,
+            firstLaunchAt:
+              typeof document.firstLaunchAt === 'number' ? document.firstLaunchAt : null,
             games:
               document.games && typeof document.games === 'object'
                 ? (document.games as Record<string, never>)
@@ -315,7 +320,9 @@ export async function importBackup(archive: string, password: string): Promise<O
 }
 
 /** Lists archives this app has exported, newest first. */
-export async function listBackups(): Promise<{ name: string; path: string; bytes: number; createdAt: number }[]> {
+export async function listBackups(): Promise<
+  { name: string; path: string; bytes: number; createdAt: number }[]
+> {
   const { readdir, stat } = await import('fs/promises')
   if (!(await pathExists(paths.backups))) return []
 
@@ -327,7 +334,12 @@ export async function listBackups(): Promise<{ name: string; path: string; bytes
       if (!entry.toLowerCase().endsWith('.zip')) continue
       const info = await stat(join(paths.backups, entry)).catch(() => null)
       if (!info) continue
-      files.push({ name: entry, path: join(paths.backups, entry), bytes: info.size, createdAt: info.mtimeMs })
+      files.push({
+        name: entry,
+        path: join(paths.backups, entry),
+        bytes: info.size,
+        createdAt: info.mtimeMs
+      })
     }
 
     return files.sort((a, b) => b.createdAt - a.createdAt)

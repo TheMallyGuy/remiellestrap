@@ -116,7 +116,11 @@
         games = result.ok ? (result.data ?? []) : []
       }
     } catch (error) {
-      pushToast({ kind: 'warning', title: 'That list is unavailable', message: errorMessage(error) })
+      pushToast({
+        kind: 'warning',
+        title: 'That list is unavailable',
+        message: errorMessage(error)
+      })
     } finally {
       busyPanel = false
     }
@@ -189,7 +193,9 @@
 />
 
 {#if !accounts.secureStorage && accounts.value}
-  <div class="mb-5 flex items-start gap-2.5 rounded-card border border-caution/25 bg-caution/8 px-3.5 py-3">
+  <div
+    class="mb-5 flex items-start gap-2.5 rounded-card border border-caution/25 bg-caution/8 px-3.5 py-3"
+  >
     <span class="mt-0.5 text-caution"><Icon name="alert" size={15} /></span>
     <div class="min-w-0 text-xs leading-relaxed text-caution/90">
       <p class="font-medium text-caution">Accounts cannot be saved on this machine</p>
@@ -293,13 +299,15 @@
 
               <span class="min-w-0 flex-1">
                 <span class="flex items-center gap-1.5">
-                  <span class="truncate text-[0.8125rem] text-ivory-100">{account.displayName}</span>
+                  <span class="truncate text-[0.8125rem] text-ivory-100">{account.displayName}</span
+                  >
                   {#if account.isActive}
                     <span class="chip border-gold-500/40 text-gold-200">launch</span>
                   {/if}
                 </span>
                 <span class="block truncate text-2xs text-ivory-500">
-                  @{account.username}{#if !account.valid} · signed out{/if}
+                  @{account.username}{#if !account.valid}
+                    · signed out{/if}
                 </span>
               </span>
             </div>
@@ -320,7 +328,9 @@
               loading="lazy"
             />
           {:else}
-            <span class="grid h-12 w-12 place-items-center rounded-full bg-ink-700 text-sm">{initials(selected)}</span>
+            <span class="grid h-12 w-12 place-items-center rounded-full bg-ink-700 text-sm"
+              >{initials(selected)}</span
+            >
           {/if}
 
           <div class="min-w-0 flex-1">
@@ -371,9 +381,15 @@
         {#if busyPanel}
           <div class="skeleton h-40 rounded-card"></div>
         {:else if tab === 'overview'}
-          <Section title="Profile" description="Fetched from Roblox with this account's own cookie.">
+          <Section
+            title="Profile"
+            description="Fetched from Roblox with this account's own cookie."
+          >
             {#if profile}
-              <SettingRow title="Display name" description={`Last checked ${formatRelative(profile.fetchedAt)}`}>
+              <SettingRow
+                title="Display name"
+                description={`Last checked ${formatRelative(profile.fetchedAt)}`}
+              >
                 <span class="text-xs text-ivory-300">{profile.displayName}</span>
               </SettingRow>
               <SettingRow title="Account created">
@@ -401,7 +417,10 @@
 
           <div class="h-5"></div>
 
-          <Section title="Actions" description="Tag the account, refresh it, or take it out of the list.">
+          <Section
+            title="Actions"
+            description="Tag the account, refresh it, or take it out of the list."
+          >
             <SettingRow title="Note" description="Shown on the roster, kept only on this machine.">
               <input
                 class="field w-56 py-1.5 text-xs"
@@ -411,7 +430,10 @@
               />
             </SettingRow>
 
-            <SettingRow title="Refresh session" description="Validates the stored cookie and updates presence.">
+            <SettingRow
+              title="Refresh session"
+              description="Validates the stored cookie and updates presence."
+            >
               <button
                 type="button"
                 class="btn-secondary gap-1.5"
@@ -440,7 +462,9 @@
             <SettingRow
               title="Remove"
               description="Deletes the encrypted cookie and the account record."
-              warning={selected.isActive ? 'This is the account launches currently use.' : undefined}
+              warning={selected.isActive
+                ? 'This is the account launches currently use.'
+                : undefined}
             >
               <button
                 type="button"
@@ -454,7 +478,10 @@
             </SettingRow>
           </Section>
         {:else if tab === 'friends'}
-          <Section title="Friends" description="Presence for your friends list, newest cache first.">
+          <Section
+            title="Friends"
+            description="Presence for your friends list, newest cache first."
+          >
             {#if friends.length === 0}
               <div class="py-6 text-center text-xs text-ivory-500">
                 No friends came back. Refresh the account, or the friends list may be private.
@@ -464,15 +491,23 @@
                 {#each friends as friend (friend.userId)}
                   <li class="flex items-center gap-2.5 py-2.5">
                     {#if friend.avatarUrl}
-                      <img src={friend.avatarUrl} alt="" class="h-7 w-7 rounded-full object-cover" loading="lazy" />
+                      <img
+                        src={friend.avatarUrl}
+                        alt=""
+                        class="h-7 w-7 rounded-full object-cover"
+                        loading="lazy"
+                      />
                     {:else}
-                      <span class="grid h-7 w-7 place-items-center rounded-full bg-ink-700 text-2xs">
+                      <span
+                        class="grid h-7 w-7 place-items-center rounded-full bg-ink-700 text-2xs"
+                      >
                         {friend.displayName.slice(0, 1).toUpperCase()}
                       </span>
                     {/if}
 
                     <span class="min-w-0 flex-1">
-                      <span class="block truncate text-xs text-ivory-200">{friend.displayName}</span>
+                      <span class="block truncate text-xs text-ivory-200">{friend.displayName}</span
+                      >
                       <span class="block truncate text-2xs text-ivory-500">@{friend.username}</span>
                     </span>
 
@@ -486,7 +521,10 @@
                       type="button"
                       class="btn-ghost px-2 py-1 text-2xs"
                       title="Open their profile on roblox.com"
-                      onclick={() => void api.system.openExternal(`https://www.roblox.com/users/${friend.userId}/profile`)}
+                      onclick={() =>
+                        void api.system.openExternal(
+                          `https://www.roblox.com/users/${friend.userId}/profile`
+                        )}
                     >
                       <Icon name="external" size={13} />
                     </button>
@@ -504,9 +542,16 @@
                 {#each games as game (game.universeId)}
                   <li class="surface-inset flex items-center gap-2.5 p-2">
                     {#if game.thumbnailUrl}
-                      <img src={game.thumbnailUrl} alt="" class="h-10 w-14 rounded object-cover" loading="lazy" />
+                      <img
+                        src={game.thumbnailUrl}
+                        alt=""
+                        class="h-10 w-14 rounded object-cover"
+                        loading="lazy"
+                      />
                     {:else}
-                      <span class="grid h-10 w-14 place-items-center rounded bg-ink-700 text-ivory-500">
+                      <span
+                        class="grid h-10 w-14 place-items-center rounded bg-ink-700 text-ivory-500"
+                      >
                         <Icon name="gamepad" size={14} />
                       </span>
                     {/if}
@@ -519,7 +564,11 @@
                       </span>
                     </span>
 
-                    <button type="button" class="btn-secondary px-2 py-1 text-2xs" onclick={() => void join(game.placeId)}>
+                    <button
+                      type="button"
+                      class="btn-secondary px-2 py-1 text-2xs"
+                      onclick={() => void join(game.placeId)}
+                    >
                       Play
                     </button>
                   </li>
@@ -548,7 +597,12 @@
           if (event.key === 'Enter') void runSearch()
         }}
       />
-      <button type="button" class="btn-secondary gap-1.5" disabled={busyPanel} onclick={() => void runSearch()}>
+      <button
+        type="button"
+        class="btn-secondary gap-1.5"
+        disabled={busyPanel}
+        onclick={() => void runSearch()}
+      >
         <Icon name="search" size={14} />
         Search
       </button>
@@ -569,7 +623,12 @@
         {#each searchResults as game (game.universeId)}
           <li class="surface-inset flex items-center gap-2.5 p-2">
             {#if game.thumbnailUrl}
-              <img src={game.thumbnailUrl} alt="" class="h-10 w-14 rounded object-cover" loading="lazy" />
+              <img
+                src={game.thumbnailUrl}
+                alt=""
+                class="h-10 w-14 rounded object-cover"
+                loading="lazy"
+              />
             {:else}
               <span class="grid h-10 w-14 place-items-center rounded bg-ink-700 text-ivory-500">
                 <Icon name="gamepad" size={14} />
@@ -583,7 +642,11 @@
               </span>
             </span>
 
-            <button type="button" class="btn-secondary px-2 py-1 text-2xs" onclick={() => void join(game.placeId)}>
+            <button
+              type="button"
+              class="btn-secondary px-2 py-1 text-2xs"
+              onclick={() => void join(game.placeId)}
+            >
               Play
             </button>
           </li>
@@ -615,8 +678,8 @@
     />
 
     <p class="mt-2 text-2xs leading-relaxed text-ivory-500">
-      The cookie is validated against Roblox, then sealed with your OS credential store. It is
-      never written to disk in plain text and never shown again.
+      The cookie is validated against Roblox, then sealed with your OS credential store. It is never
+      written to disk in plain text and never shown again.
     </p>
 
     <div class="mt-4 flex justify-end gap-2">
@@ -645,7 +708,8 @@
     </p>
 
     <div class="mt-4 flex justify-end gap-2">
-      <button type="button" class="btn-ghost" onclick={() => (confirmRemove = null)}>Keep it</button>
+      <button type="button" class="btn-ghost" onclick={() => (confirmRemove = null)}>Keep it</button
+      >
       <button
         type="button"
         class="btn-danger"

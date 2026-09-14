@@ -143,7 +143,9 @@ const CLEANER_IDS = CLEANER_TARGETS.map((target) => target.id)
 function coerceCleanerTargets(value: unknown, fallback: CleanerCategory[]): CleanerCategory[] {
   if (!Array.isArray(value)) return [...fallback]
   const allowed = new Set<string>(CLEANER_IDS)
-  const out = value.filter((item): item is CleanerCategory => typeof item === 'string' && allowed.has(item))
+  const out = value.filter(
+    (item): item is CleanerCategory => typeof item === 'string' && allowed.has(item)
+  )
   return out.length > 0 ? [...new Set(out)] : []
 }
 
@@ -250,7 +252,10 @@ export function coerceSettings(input: unknown, base: AppSettings = DEFAULT_SETTI
       ['ticket', 'plain'] as const,
       base.accountLaunchStrategy
     ),
-    accountBackgroundRefresh: bool(value('accountBackgroundRefresh'), base.accountBackgroundRefresh),
+    accountBackgroundRefresh: bool(
+      value('accountBackgroundRefresh'),
+      base.accountBackgroundRefresh
+    ),
     accountRefreshMinutes: int(value('accountRefreshMinutes'), base.accountRefreshMinutes, 1, 60),
     showAccountInTitlebar: bool(value('showAccountInTitlebar'), base.showAccountInTitlebar),
 
@@ -296,7 +301,12 @@ export function coerceSettings(input: unknown, base: AppSettings = DEFAULT_SETTI
       base.flagAllowlistSeverity
     ),
     flagAllowlistAutoUpdate: bool(value('flagAllowlistAutoUpdate'), base.flagAllowlistAutoUpdate),
-    lastAllowlistUpdate: int(value('lastAllowlistUpdate'), base.lastAllowlistUpdate, 0, Number.MAX_SAFE_INTEGER),
+    lastAllowlistUpdate: int(
+      value('lastAllowlistUpdate'),
+      base.lastAllowlistUpdate,
+      0,
+      Number.MAX_SAFE_INTEGER
+    ),
     disableCaptureFeatures: bool(value('disableCaptureFeatures'), base.disableCaptureFeatures),
     enableVoiceChat: bool(value('enableVoiceChat'), base.enableVoiceChat),
 
@@ -337,7 +347,11 @@ export function coerceSettings(input: unknown, base: AppSettings = DEFAULT_SETTI
     applySettingsToStudio: bool(value('applySettingsToStudio'), base.applySettingsToStudio),
 
     /* Appearance */
-    sidebarMode: pick(value('sidebarMode'), ['full', 'compact', 'icons'] as const, base.sidebarMode),
+    sidebarMode: pick(
+      value('sidebarMode'),
+      ['full', 'compact', 'icons'] as const,
+      base.sidebarMode
+    ),
     windowEffect: pick(
       value('windowEffect'),
       ['none', 'auto', 'mica', 'acrylic', 'blur'] as const,
@@ -353,7 +367,12 @@ export function coerceSettings(input: unknown, base: AppSettings = DEFAULT_SETTI
     backgroundSolid: hex(value('backgroundSolid'), base.backgroundSolid),
     backgroundGradientFrom: hex(value('backgroundGradientFrom'), base.backgroundGradientFrom),
     backgroundGradientTo: hex(value('backgroundGradientTo'), base.backgroundGradientTo),
-    backgroundGradientAngle: int(value('backgroundGradientAngle'), base.backgroundGradientAngle, 0, 360),
+    backgroundGradientAngle: int(
+      value('backgroundGradientAngle'),
+      base.backgroundGradientAngle,
+      0,
+      360
+    ),
     backgroundImage: nullablePath(value('backgroundImage'), base.backgroundImage),
     backgroundOpacity: num(value('backgroundOpacity'), base.backgroundOpacity, 0.05, 1),
     backgroundAnimate: bool(value('backgroundAnimate'), base.backgroundAnimate),

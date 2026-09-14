@@ -120,7 +120,10 @@ export interface InvokeMap {
     request: { id?: string; profile?: boolean } | void
     response: AccountState
   }
-  'accounts:getProfile': { request: AccountProfileRequest; response: OperationResult<AccountProfile> }
+  'accounts:getProfile': {
+    request: AccountProfileRequest
+    response: OperationResult<AccountProfile>
+  }
   'accounts:getFriends': {
     request: { accountId: string; refresh?: boolean }
     response: OperationResult<AccountFriend[]>
@@ -194,7 +197,10 @@ export interface InvokeMap {
   'fastflags:preview': { request: void; response: Record<string, FlagValue> }
   'fastflags:allowlist': { request: FlagAllowlistRequest | void; response: FlagAllowlist }
   'fastflags:audit': { request: { name?: string } | void; response: FlagAudit }
-  'fastflags:clean': { request: { name?: string; dryRun?: boolean } | void; response: FlagCleanResult }
+  'fastflags:clean': {
+    request: { name?: string; dryRun?: boolean } | void
+    response: FlagCleanResult
+  }
   'fastflags:presets': { request: void; response: FlagPreset[] }
   'fastflags:applyPreset': { request: FlagPresetApplyRequest; response: FlagProfile[] }
 

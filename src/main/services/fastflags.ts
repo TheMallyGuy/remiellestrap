@@ -73,6 +73,7 @@ export function coerceFlagValue(value: unknown): FlagValue | null {
   if (typeof value === 'string') {
     // Roblox writes every flag as a string in ClientAppSettings.json, so keep
     // the raw text but strip control characters.
+    // eslint-disable-next-line no-control-regex -- control characters are what we strip
     return value.replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 512)
   }
   return null
@@ -105,11 +106,14 @@ export function sanitizeFlags(input: unknown): Record<string, FlagValue> {
 }
 
 function sanitizeProfileName(name: string): string {
-  return name
-    .replace(/[\u0000-\u001f\u007f]/g, '')
-    .replace(/[\\/:*?"<>|]/g, '')
-    .trim()
-    .slice(0, 64)
+  return (
+    name
+      // eslint-disable-next-line no-control-regex -- control characters are what we strip
+      .replace(/[\u0000-\u001f\u007f]/g, '')
+      .replace(/[\\/:*?"<>|]/g, '')
+      .trim()
+      .slice(0, 64)
+  )
 }
 
 function toProfiles(raw: Record<string, Record<string, unknown>>, active: string): FlagProfile[] {
@@ -321,7 +325,6 @@ export async function applyFlags(versionDirectory: string): Promise<number> {
   return count
 }
 
-
 /* ----------------------------------------------------------- Allowlist */
 
 interface AllowlistCache {
@@ -439,7 +442,9 @@ export async function audit(name?: string): Promise<FlagAudit> {
  * Removes every non-allowlisted flag from a profile. With `dryRun` nothing is
  * written — the UI uses that to show what would go before asking.
  */
-export async function clean(options: { name?: string; dryRun?: boolean } = {}): Promise<FlagCleanResult> {
+export async function clean(
+  options: { name?: string; dryRun?: boolean } = {}
+): Promise<FlagCleanResult> {
   const settings = getSettings()
   const profileName = options.name ?? settings.activeFlagProfile
   const flags = settings.flagProfiles[profileName]

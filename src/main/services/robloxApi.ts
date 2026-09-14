@@ -60,7 +60,12 @@ export async function authenticatedUser(
 ): Promise<AuthenticatedUser> {
   const payload = await getJson<{ id?: number; name?: string; displayName?: string }>(
     `${USERS_HOST}/v1/users/authenticated`,
-    { headers: cookieHeader(cookie), retries: 0, timeoutMs: options.timeoutMs ?? 15_000, signal: options.signal }
+    {
+      headers: cookieHeader(cookie),
+      retries: 0,
+      timeoutMs: options.timeoutMs ?? 15_000,
+      signal: options.signal
+    }
   )
 
   if (!payload?.id || !payload.name) {
@@ -227,11 +232,14 @@ export async function userProfile(
   options: ApiOptions = {}
 ): Promise<UserProfileResponse | null> {
   try {
-    const payload = await getJson<Partial<UserProfileResponse>>(`${USERS_HOST}/v1/users/${userId}`, {
-      headers: cookie ? cookieHeader(cookie) : BROWSER_HEADERS,
-      retries: 1,
-      signal: options.signal
-    })
+    const payload = await getJson<Partial<UserProfileResponse>>(
+      `${USERS_HOST}/v1/users/${userId}`,
+      {
+        headers: cookie ? cookieHeader(cookie) : BROWSER_HEADERS,
+        retries: 1,
+        signal: options.signal
+      }
+    )
 
     if (!payload?.id) return null
     return {
@@ -325,7 +333,11 @@ export async function userPresence(
     }>(
       `${PRESENCE_HOST}/v1/presence/users`,
       { userIds: unique },
-      { headers: cookie ? cookieHeader(cookie) : BROWSER_HEADERS, retries: 1, signal: options.signal }
+      {
+        headers: cookie ? cookieHeader(cookie) : BROWSER_HEADERS,
+        retries: 1,
+        signal: options.signal
+      }
     )
 
     const out: Record<number, PresenceEntry> = {}
@@ -357,7 +369,11 @@ export async function friendCount(
   try {
     const payload = await getJson<{ count?: number }>(
       `${FRIENDS_HOST}/v1/users/${userId}/${kind}/count`,
-      { headers: cookie ? cookieHeader(cookie) : BROWSER_HEADERS, retries: 1, signal: options.signal }
+      {
+        headers: cookie ? cookieHeader(cookie) : BROWSER_HEADERS,
+        retries: 1,
+        signal: options.signal
+      }
     )
     return typeof payload?.count === 'number' ? payload.count : null
   } catch {
@@ -417,7 +433,9 @@ export async function friendsList(
           isPlaying: state?.presence === 'ingame'
         }
       })
-      .sort((a, b) => Number(b.isOnline) - Number(a.isOnline) || a.username.localeCompare(b.username))
+      .sort(
+        (a, b) => Number(b.isOnline) - Number(a.isOnline) || a.username.localeCompare(b.username)
+      )
   } catch (error) {
     logger.warn(`Friend list for ${userId} failed: ${String(error)}`)
     return []
@@ -507,14 +525,19 @@ export async function gameThumbnails(
     const batch = unique.slice(offset, offset + 50)
     try {
       const payload = await getJson<{
-        data?: Array<{ universeId?: number; thumbnails?: Array<{ imageUrl?: string; state?: string }> }>
+        data?: Array<{
+          universeId?: number
+          thumbnails?: Array<{ imageUrl?: string; state?: string }>
+        }>
       }>(
         `${THUMBNAILS_HOST}/v1/games/multiget/thumbnails?universeIds=${batch.join(',')}&size=768x432&format=Png&isCircular=false`,
         { headers: BROWSER_HEADERS, retries: 1, signal: options.signal }
       )
 
       for (const entry of payload?.data ?? []) {
-        const first = entry?.thumbnails?.find((thumb) => thumb?.imageUrl && thumb.state === 'Completed')
+        const first = entry?.thumbnails?.find(
+          (thumb) => thumb?.imageUrl && thumb.state === 'Completed'
+        )
         if (entry?.universeId && first?.imageUrl) out[entry.universeId] = first.imageUrl
       }
     } catch (error) {
@@ -526,7 +549,10 @@ export async function gameThumbnails(
 }
 
 /** Place id -> universe id, used when the UI only has a place id. */
-export async function universeIdForPlace(placeId: number, options: ApiOptions = {}): Promise<number | null> {
+export async function universeIdForPlace(
+  placeId: number,
+  options: ApiOptions = {}
+): Promise<number | null> {
   try {
     const payload = await getJson<{ data?: Array<{ placeId?: number; universeId?: number }> }>(
       `${APIS_HOST}/universes/v1/places/${placeId}/universe`,
@@ -717,7 +743,12 @@ export async function publicServers(
 
   const payload = await getJson<{ data?: RawServer[]; nextPageCursor?: string | null }>(
     url.toString(),
-    { headers: BROWSER_HEADERS, retries: 0, timeoutMs: options.timeoutMs ?? 15_000, signal: options.signal }
+    {
+      headers: BROWSER_HEADERS,
+      retries: 0,
+      timeoutMs: options.timeoutMs ?? 15_000,
+      signal: options.signal
+    }
   )
 
   return {

@@ -236,7 +236,9 @@ export function rankServers(
       list.sort((a, b) => (a.ping ?? 9999) - (b.ping ?? 9999))
       break
     case 'region':
-      list.sort((a, b) => (a.region ?? 'zz').localeCompare(b.region ?? 'zz') || b.playing - a.playing)
+      list.sort(
+        (a, b) => (a.region ?? 'zz').localeCompare(b.region ?? 'zz') || b.playing - a.playing
+      )
       break
     case 'uptime':
       list.sort((a, b) => (b.uptimeSeconds ?? 0) - (a.uptimeSeconds ?? 0))
@@ -250,7 +252,8 @@ export function rankServers(
 
 export async function listServers(request: ServerListRequest): Promise<ServerListResult> {
   const settings = getSettings()
-  const placeId = request.placeId ?? (request.universeId ? await placeFromUniverse(request.universeId) : null)
+  const placeId =
+    request.placeId ?? (request.universeId ? await placeFromUniverse(request.universeId) : null)
 
   if (!placeId) {
     return {
@@ -300,7 +303,11 @@ export async function listServers(request: ServerListRequest): Promise<ServerLis
 
     // Only ask the lookup service about servers we have not classified yet.
     const unknowns = raw
-      .filter((server) => server.id && !cache.entries[placeId]?.servers.some((s) => s.id === server.id && s.datacenter))
+      .filter(
+        (server) =>
+          server.id &&
+          !cache.entries[placeId]?.servers.some((s) => s.id === server.id && s.datacenter)
+      )
       .map((server) => server.id as string)
 
     const lookups = unknowns.length > 0 ? await lookupRegions(placeId, unknowns) : new Map()
@@ -318,7 +325,10 @@ export async function listServers(request: ServerListRequest): Promise<ServerLis
 
     await saveState({ serverFirstSeen: firstSeen })
 
-    const entries = { ...cache.entries, [placeId]: { placeId, servers, fetchedAt: Date.now(), error: null } }
+    const entries = {
+      ...cache.entries,
+      [placeId]: { placeId, servers, fetchedAt: Date.now(), error: null }
+    }
     await saveCache({ entries: pruneEntries(entries) })
 
     return {
@@ -415,7 +425,9 @@ export async function pingServers(
   servers: { id: string; datacenter: string | null }[]
 ): Promise<ServerPingSample[]> {
   const cache = await loadCache()
-  const known = new Map((cache.entries[placeId]?.servers ?? []).map((server) => [server.id, server]))
+  const known = new Map(
+    (cache.entries[placeId]?.servers ?? []).map((server) => [server.id, server])
+  )
 
   return servers.map((server) => {
     const cachedServer = known.get(server.id)
@@ -465,7 +477,8 @@ export async function joinServer(request: ServerJoinRequest): Promise<ServerJoin
     serverId = chosen.id
   } else {
     const cache = await loadCache()
-    chosen = cache.entries[request.placeId]?.servers.find((server) => server.id === serverId) ?? null
+    chosen =
+      cache.entries[request.placeId]?.servers.find((server) => server.id === serverId) ?? null
   }
 
   try {
@@ -493,7 +506,13 @@ export async function joinServer(request: ServerJoinRequest): Promise<ServerJoin
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     logger.error(`Region join failed: ${message}`)
-    return { serverId, region: chosen?.region ?? null, ping: chosen?.ping ?? null, launched: false, message }
+    return {
+      serverId,
+      region: chosen?.region ?? null,
+      ping: chosen?.ping ?? null,
+      launched: false,
+      message
+    }
   }
 }
 

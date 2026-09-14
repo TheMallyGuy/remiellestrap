@@ -49,7 +49,11 @@ export async function loadAccounts(): Promise<void> {
   try {
     snapshot = await api.accounts.get()
   } catch (error) {
-    pushToast({ kind: 'error', title: 'Accounts could not be loaded', message: errorMessage(error) })
+    pushToast({
+      kind: 'error',
+      title: 'Accounts could not be loaded',
+      message: errorMessage(error)
+    })
   } finally {
     loading = false
   }

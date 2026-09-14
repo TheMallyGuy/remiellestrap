@@ -130,7 +130,9 @@ function normalizeEntry(raw: Partial<ModIndexEntry>, fallbackPriority: number): 
     sourceUrl: typeof raw.sourceUrl === 'string' ? raw.sourceUrl : null,
     communityId: typeof raw.communityId === 'string' ? raw.communityId : null,
     provides: Array.isArray(raw.provides)
-      ? raw.provides.filter((item): item is string => typeof item === 'string').slice(0, MAX_MOD_FILES)
+      ? raw.provides
+          .filter((item): item is string => typeof item === 'string')
+          .slice(0, MAX_MOD_FILES)
       : []
   }
 }
@@ -163,7 +165,9 @@ async function reconcile(): Promise<ModIndex> {
   const known = new Set(index.mods.map((mod) => mod.id))
   const present = new Set(directories)
 
-  const mods = index.mods.map((raw, position) => normalizeEntry(raw, position + 1)).filter((mod) => present.has(mod.id))
+  const mods = index.mods
+    .map((raw, position) => normalizeEntry(raw, position + 1))
+    .filter((mod) => present.has(mod.id))
   let nextPriority = mods.reduce((max, mod) => Math.max(max, mod.priority), 0)
   let changed = mods.length !== index.mods.length
 
@@ -499,7 +503,9 @@ async function pickImage(title: string): Promise<string | null> {
  * is just a mod with two files in it, which keeps switching between sets
  * exactly as cheap as toggling a mod.
  */
-export async function createCursorSet(request: CursorSetRequest): Promise<OperationResult<ModEntry[]>> {
+export async function createCursorSet(
+  request: CursorSetRequest
+): Promise<OperationResult<ModEntry[]>> {
   const arrow = request.cursor || (await pickImage('Choose the cursor image'))
   if (!arrow) return { ok: false, error: 'No cursor image was chosen' }
 
@@ -539,14 +545,20 @@ export async function createCursorSet(request: CursorSetRequest): Promise<Operat
       version: null,
       sourceUrl: null,
       communityId: null,
-      provides: ['content/textures/Cursors/KeyboardMouse/ArrowCursor.png', 'content/textures/Cursors/KeyboardMouse/ArrowFarCursor.png']
+      provides: [
+        'content/textures/Cursors/KeyboardMouse/ArrowCursor.png',
+        'content/textures/Cursors/KeyboardMouse/ArrowFarCursor.png'
+      ]
     })
 
     await maybeApplyNow()
     return { ok: true, data: await listMods() }
   } catch (error) {
     logger.error(`Cursor set generation failed: ${String(error)}`)
-    return { ok: false, error: error instanceof Error ? error.message : 'Could not build the cursor set' }
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : 'Could not build the cursor set'
+    }
   }
 }
 
@@ -564,7 +576,9 @@ function isHexColor(value: string): boolean {
  * they supplied them. Nothing is downloaded, so the result is deterministic and
  * works offline.
  */
-export async function generateRichMod(request: RichModRequest): Promise<OperationResult<ModEntry[]>> {
+export async function generateRichMod(
+  request: RichModRequest
+): Promise<OperationResult<ModEntry[]>> {
   const color = (request.color ?? '').trim()
   const accent = (request.accent ?? '').trim()
 
@@ -572,7 +586,8 @@ export async function generateRichMod(request: RichModRequest): Promise<Operatio
     return { ok: false, error: 'Provide both colours as hex values such as #101014' }
   }
 
-  const gradientTo = request.gradientTo && isHexColor(request.gradientTo) ? request.gradientTo.trim() : null
+  const gradientTo =
+    request.gradientTo && isHexColor(request.gradientTo) ? request.gradientTo.trim() : null
   const targets = request.targets
 
   try {
@@ -589,7 +604,13 @@ export async function generateRichMod(request: RichModRequest): Promise<Operatio
     }
 
     /** Gradient when a second colour was given, otherwise flat. */
-    const surface = (from: string, to: string, angle: number, size: number, vignette = false): Buffer =>
+    const surface = (
+      from: string,
+      to: string,
+      angle: number,
+      size: number,
+      vignette = false
+    ): Buffer =>
       gradientTo
         ? gradientPng({ from, to: to === from ? gradientTo : to, angle, size, vignette })
         : solidPng(from)
@@ -603,8 +624,14 @@ export async function generateRichMod(request: RichModRequest): Promise<Operatio
     if (targets.cursor) {
       const supplied = request.cursorImage && (await pathExists(request.cursorImage))
       if (supplied && request.cursorImage) {
-        await write('content/textures/Cursors/KeyboardMouse/ArrowCursor.png', await readBinary(request.cursorImage))
-        await write('content/textures/Cursors/KeyboardMouse/ArrowFarCursor.png', await readBinary(request.cursorImage))
+        await write(
+          'content/textures/Cursors/KeyboardMouse/ArrowCursor.png',
+          await readBinary(request.cursorImage)
+        )
+        await write(
+          'content/textures/Cursors/KeyboardMouse/ArrowFarCursor.png',
+          await readBinary(request.cursorImage)
+        )
       } else {
         // A soft radial-ish tile reads as a deliberate cursor stand-in rather
         // than a coloured square.
@@ -764,7 +791,9 @@ interface CommunityCacheFile {
  * URL, which keeps this feature usable with any curated list (ours, a GitHub
  * raw file, or a fork's own index) without hard-coding a service.
  */
-export async function communityIndex(options: { refresh?: boolean; query?: string } = {}): Promise<CommunityIndex> {
+export async function communityIndex(
+  options: { refresh?: boolean; query?: string } = {}
+): Promise<CommunityIndex> {
   const settings = getSettings()
   const source = settings.communityModIndexUrl
   const cacheFile = join(paths.communityCache, 'index.json')
@@ -783,13 +812,25 @@ export async function communityIndex(options: { refresh?: boolean; query?: strin
   let cached: CommunityCacheFile | null = null
 
   if (source.length === 0) {
-    return { source, fetchedAt: 0, mods: [], error: 'No community index URL is configured', cached: false }
+    return {
+      source,
+      fetchedAt: 0,
+      mods: [],
+      error: 'No community index URL is configured',
+      cached: false
+    }
   }
 
   if (!options.refresh) {
     cached = await readCache()
     if (cached?.source === source) {
-      return { source, fetchedAt: cached.fetchedAt, mods: filter(cached.mods), error: null, cached: true }
+      return {
+        source,
+        fetchedAt: cached.fetchedAt,
+        mods: filter(cached.mods),
+        error: null,
+        cached: true
+      }
     }
   }
 
@@ -848,7 +889,10 @@ function parseCommunityIndex(payload: unknown): CommunityMod[] {
       description: typeof record.description === 'string' ? record.description.slice(0, 600) : '',
       version: typeof record.version === 'string' ? record.version.slice(0, 40) : '1.0.0',
       url,
-      sha256: typeof record.sha256 === 'string' && /^[0-9a-f]{64}$/i.test(record.sha256) ? record.sha256 : null,
+      sha256:
+        typeof record.sha256 === 'string' && /^[0-9a-f]{64}$/i.test(record.sha256)
+          ? record.sha256
+          : null,
       sizeBytes: typeof record.size === 'number' ? record.size : null,
       previewUrl: typeof record.preview === 'string' ? record.preview : null,
       tags: Array.isArray(record.tags)
@@ -1056,7 +1100,10 @@ function targetsBinary(target: ModTarget, binaryType: BinaryType): boolean {
  * Returns the relative paths written, which are persisted so the next update
  * knows which files came from mods.
  */
-export async function applyMods(versionDirectory: string, binaryType: BinaryType = 'WindowsPlayer'): Promise<string[]> {
+export async function applyMods(
+  versionDirectory: string,
+  binaryType: BinaryType = 'WindowsPlayer'
+): Promise<string[]> {
   const mods = (await listMods())
     .filter((mod) => mod.enabled)
     .sort((a, b) => a.priority - b.priority)
@@ -1222,7 +1269,12 @@ export function fileSlots(): ModFileSlotDefinition[] {
 }
 
 /** Diagnostics used by the About page. */
-export async function summary(): Promise<{ mods: number; enabled: number; bytes: number; conflicts: number }> {
+export async function summary(): Promise<{
+  mods: number
+  enabled: number
+  bytes: number
+  conflicts: number
+}> {
   const mods = await listMods()
   return {
     mods: mods.length,

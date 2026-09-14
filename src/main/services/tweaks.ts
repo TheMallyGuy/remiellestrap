@@ -1,6 +1,11 @@
 import { execFile } from 'child_process'
 import { availableParallelism } from 'os'
-import type { OperationResult, PowerPlan, ProcessTweakRequest, ProcessTweakState } from '@shared/models'
+import type {
+  OperationResult,
+  PowerPlan,
+  ProcessTweakRequest,
+  ProcessTweakState
+} from '@shared/models'
 import { createLogger } from '../utils/logger'
 import { getSettings } from './settingsStore'
 import { currentActivity, isRobloxRunning } from './activity'
@@ -52,7 +57,13 @@ function powershell(script: string, timeout = 20_000): Promise<string> {
 export async function robloxProcessIds(): Promise<number[]> {
   if (process.platform !== 'win32') return []
 
-  const output = await run('tasklist', ['/FI', 'IMAGENAME eq RobloxPlayerBeta.exe', '/FO', 'CSV', '/NH'])
+  const output = await run('tasklist', [
+    '/FI',
+    'IMAGENAME eq RobloxPlayerBeta.exe',
+    '/FO',
+    'CSV',
+    '/NH'
+  ])
 
   return output
     .split(/\r?\n/)
