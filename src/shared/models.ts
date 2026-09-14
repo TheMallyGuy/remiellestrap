@@ -6,6 +6,7 @@
 import type { ActivityEntry } from './state'
 import type {
   AllowlistSeverity,
+  BooruProvider,
   CleanerCategory,
   ModTarget,
   ServerSizePreference,
@@ -20,6 +21,7 @@ import type {
  */
 export type {
   AllowlistSeverity,
+  BooruProvider,
   CleanerCategory,
   LauncherStyle,
   ModTarget,
@@ -31,6 +33,8 @@ export type {
 
 export interface BooruPost {
   id: number
+  /** Which image board served this post. */
+  source: BooruProvider
   fileUrl: string
   previewUrl: string
   sampleUrl: string | null
@@ -45,6 +49,8 @@ export interface BooruPost {
 export interface ArtAsset {
   slot: string
   postId: number
+  /** Which image board served this asset. */
+  source: BooruProvider
   /** app:// style URL the renderer can render directly from the local cache. */
   url: string
   previewUrl: string | null
@@ -60,6 +66,8 @@ export interface BooruSearchRequest {
   tags: string
   page?: number
   limit?: number
+  /** Overrides the configured provider for this search only. */
+  provider?: BooruProvider
 }
 
 export interface ArtRequest {

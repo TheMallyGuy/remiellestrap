@@ -36,7 +36,7 @@ import type {
   SystemInfo,
   VersionActionRequest
 } from '@shared/models'
-import type { AppSettings, CleanerCategory, WindowEffect } from '@shared/settings'
+import type { AppSettings, BooruProvider, CleanerCategory, WindowEffect } from '@shared/settings'
 import type { UiState } from '@shared/state'
 import { paths, stockRobloxRoot } from '../utils/paths'
 import { createLogger, currentLogFile } from '../utils/logger'
@@ -144,6 +144,13 @@ function ok<T>(data?: T): OperationResult<T> {
 
 function failed(error: string): OperationResult<never> {
   return { ok: false, error }
+}
+
+/** Narrows an untrusted provider string to a board id, or rejects it. */
+function coerceBooruProvider(value: string | undefined): BooruProvider | undefined {
+  if (value === undefined) return undefined
+  if (value === 'safebooru' || value === 'danbooru') return value
+  throw new ValidationError('The image board must be safebooru or danbooru')
 }
 
 /** Opens a directory in the OS file manager, creating it when missing. */
@@ -560,10 +567,13 @@ const handlers: HandlerMap = {
 
   'booru:search': async (request) => {
     const raw = requireObject(request, 'search') as unknown as BooruSearchRequest
+    const provider = coerceBooruProvider(optionalString(raw.provider, 'provider', 20))
     return booru.searchPosts({
       tags: requireString(raw.tags, 'tags', 400),
-      page: optionalInteger(raw.page, 'page', 1, 100),
-      limit: optionalInteger(raw.limit, 'limit', 1, 100)
+      // Board pages are 0-based (`pid` on Safebooru, mapped to 1-based for Danbooru).
+      page: optionalInteger(raw.page, 'page', 0, 100),
+      limit: optionalInteger(raw.limit, 'limit', 1, 100),
+      provider
     })
   },
 
@@ -583,7 +593,8 @@ const handlers: HandlerMap = {
   'booru:openPost': async (request) => {
     const raw = requireObject(request, 'post')
     const postId = requireInteger(raw.postId, 'postId', 1, 100_000_000)
-    const opened = await openExternal(booru.postUrlFor(postId))
+    const source = coerceBooruProvider(optionalString(raw.source, 'source', 20))
+    const opened = await openExternal(booru.postUrlFor(postId, source))
     return opened ? ok() : failed('That link is not allowed')
   },
 

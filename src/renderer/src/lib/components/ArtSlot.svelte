@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { ArtSlot as Slot } from '@shared/settings'
+  import { booruProviderLabel } from '@shared/settings'
   import { artSlot, loadArt } from '../stores/art.svelte'
   import { api } from '../ipc'
   import { prettyTags } from '../utils/format'
@@ -9,10 +10,10 @@
    * Renders one Remielle art slot.
    *
    * The image always comes from the local cache over `app://` — never a
-   * hotlink — and every slot carries its Safebooru post id as an attribution
-   * chip that opens the source page. While loading, a shimmering skeleton
-   * holds the layout; if Safebooru is unreachable the slot degrades to a quiet
-   * prism-tinted panel rather than a broken image.
+   * hotlink — and every slot carries its source-board post id as an
+   * attribution chip that opens the source page. While loading, a shimmering
+   * skeleton holds the layout; if the board is unreachable the slot degrades
+   * to a quiet prism-tinted panel rather than a broken image.
    */
 
   interface Props {
@@ -44,6 +45,7 @@
 
   const slotState = $derived(artSlot(slot))
   const asset = $derived(slotState.asset)
+  const sourceLabel = $derived(booruProviderLabel(asset?.source))
 
   let shuffling = $state(false)
 
@@ -61,7 +63,7 @@
 
   function openPost(event: MouseEvent): void {
     event.stopPropagation()
-    if (asset) void api.booru.openPost(asset.postId)
+    if (asset) void api.booru.openPost(asset.postId, asset.source)
   }
 </script>
 
@@ -122,10 +124,10 @@
           type="button"
           class="chip hover:border-gold-400/40 hover:text-ivory-200 transition-colors"
           onclick={openPost}
-          title={prettyTags(asset.tags) || 'View on Safebooru'}
+          title={prettyTags(asset.tags) || `View on ${sourceLabel}`}
         >
           <Icon name="external" size={10} />
-          Safebooru #{asset.postId}
+          {sourceLabel} #{asset.postId}
         </button>
       {/if}
 

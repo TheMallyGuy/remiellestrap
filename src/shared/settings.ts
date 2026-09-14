@@ -57,6 +57,39 @@ export const ART_SLOTS = [
 ] as const
 export type ArtSlot = (typeof ART_SLOTS)[number]
 
+/** Which image board the runtime artwork pipeline searches. */
+export type BooruProvider = 'safebooru' | 'danbooru'
+
+export const BOORU_PROVIDERS: {
+  value: BooruProvider
+  label: string
+  hint: string
+  homeUrl: string
+}[] = [
+  {
+    value: 'safebooru',
+    label: 'Safebooru',
+    hint: 'Safe-for-work only. No account needed.',
+    homeUrl: 'https://safebooru.org/'
+  },
+  {
+    value: 'danbooru',
+    label: 'Danbooru',
+    hint: 'Larger pool. Sign-in details raise the rate limit.',
+    homeUrl: 'https://danbooru.donmai.us/'
+  }
+]
+
+export function booruProviderLabel(provider: string | null | undefined): string {
+  return BOORU_PROVIDERS.find((entry) => entry.value === provider)?.label ?? 'Safebooru'
+}
+
+export function booruProviderHome(provider: string | null | undefined): string {
+  return (
+    BOORU_PROVIDERS.find((entry) => entry.value === provider)?.homeUrl ?? 'https://safebooru.org/'
+  )
+}
+
 export type BooruTagMap = Record<ArtSlot, string>
 
 export interface AppSettings {
@@ -82,6 +115,14 @@ export interface AppSettings {
   lastOpenedPage: string
   booruTags: BooruTagMap
   chosenBooruPosts: Record<string, number | null>
+  /** Which image board the artwork pipeline searches. */
+  booruProvider: BooruProvider
+  /** Danbooru username, sent only to Danbooru to raise API rate limits. */
+  danbooruLogin: string
+  /** Danbooru API key, sent only to Danbooru alongside the login above. */
+  danbooruApiKey: string
+  /** Keep Danbooru searches to general/sensitive posts. Safebooru is always safe-only. */
+  danbooruSafeOnly: boolean
   /* Extended options beyond the base contract. */
   reduceMotion: boolean
   showBootstrapperArt: boolean
@@ -271,6 +312,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
     bootstrapper: null,
     background: null
   },
+  booruProvider: 'safebooru',
+  danbooruLogin: '',
+  danbooruApiKey: '',
+  danbooruSafeOnly: true,
   reduceMotion: false,
   showBootstrapperArt: true,
   installLocation: null,

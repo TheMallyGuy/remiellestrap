@@ -9,8 +9,9 @@ The short version:
 - **No character artwork is committed to this repository.** Not one file.
 - **No asset in this repository is AI-generated.**
 - Every image of Remielle Dan you see in the running app is downloaded from
-  [Safebooru](https://safebooru.org) at runtime by `src/main/services/booru.ts`,
-  cached on the user's own machine, and attributed in the UI.
+  [Safebooru](https://safebooru.org) or [Danbooru](https://danbooru.donmai.us)
+  at runtime by `src/main/services/booru.ts`, cached on the user's own
+  machine, and attributed in the UI.
 - You do **not** need to source, draw, or drop in any character art to build or
   run this project. There is nothing to fill in.
 
@@ -181,7 +182,7 @@ stays legible on pale surfaces; the prism hues deepen for the same reason.
 
 ---
 
-## 3. Runtime artwork — the Safebooru pipeline
+## 3. Runtime artwork — the image-board pipeline
 
 This is where every image of Remielle Dan comes from. None of it is in the
 repository; all of it is fetched, cached, and attributed at runtime.
@@ -198,11 +199,19 @@ repository; all of it is fetched, cached, and attributed at runtime.
 | Renderer state per slot                                                 | `src/renderer/src/lib/stores/art.svelte.ts`      |
 | Presentation, skeleton, attribution, shuffle                            | `src/renderer/src/lib/components/ArtSlot.svelte` |
 
-The renderer never touches the network for art and never receives a Safebooru
+The renderer never touches the network for art and never receives a board
 URL to load. It receives an `app://art/<filename>` URL pointing at a file
 already on disk.
 
-### 3.2 The API contract
+The board is chosen in **Appearance → Artwork** and stored as
+`settings.booruProvider` (`safebooru` by default). Danbooru searches can carry
+an optional login + API key (`settings.danbooruLogin` /
+`settings.danbooruApiKey`) for higher rate limits, and `danbooruSafeOnly`
+keeps them to general/sensitive posts unless the query constrains the rating
+itself. Cached entries record which board served them, so switching boards
+re-fetches every slot instead of reusing the other board's posts.
+
+### 3.2 The API contracts
 
 Safebooru's DAPI, documented at
 `https://safebooru.org/index.php?page=help&topic=dapi`:
@@ -231,6 +240,27 @@ Notes that shaped the implementation:
   - sample: `https://safebooru.org/samples/<directory>/sample_<base>.jpg`
   - thumb: `https://safebooru.org/thumbnails/<directory>/thumbnail_<base>.jpg`
 - Only posts with a `sample` flag actually have a sample file.
+
+Danbooru's JSON API:
+
+```
+GET https://danbooru.donmai.us/posts.json
+      ?tags=<space-separated tags>
+      &limit=<1..200>
+      &page=<1-based page index>
+      &login=<optional username>
+      &api_key=<optional API key>
+```
+
+Notes that shaped the implementation:
+
+- `page` is **1-based**; the app's 0-based pages are shifted by one.
+- Anonymous callers are rate-limited aggressively, hence the optional
+  credentials. The request URL carrying them is never logged.
+- Deleted/banned posts and non-image types (ugoira `zip`, `mp4`/`webm`) are
+  filtered out; `large_file_url` plays the role of Safebooru's sample.
+- Image bytes are only accepted from `cdn.donmai.us` /
+  `danbooru.donmai.us`, mirroring the Safebooru origin check.
 
 ### 3.3 Slots and their default tags
 

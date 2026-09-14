@@ -10,9 +10,9 @@ import { APP_SCHEME } from './protocol'
  * The policy is attached as a response header rather than a <meta> tag so it
  * also covers the dev server and any subresource the renderer requests.
  *
- * Images resolve from the `app://` scheme (the local Safebooru cache) — never
+ * Images resolve from the `app://` scheme (the local image-board cache) — never
  * `file:` and never a remote host, so artwork cannot phone home or leak the
- * user's IP to the booru CDN at render time.
+ * user's IP to a booru CDN at render time.
  */
 
 const logger = createLogger('Security')
@@ -20,6 +20,7 @@ const logger = createLogger('Security')
 /** Hosts the renderer is allowed to be sent to via the shell. */
 const ALLOWED_EXTERNAL_HOSTS = new Set([
   'safebooru.org',
+  'danbooru.donmai.us',
   'www.roblox.com',
   'roblox.com',
   'create.roblox.com',

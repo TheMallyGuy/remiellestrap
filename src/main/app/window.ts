@@ -18,8 +18,10 @@ const MIN_WIDTH = 940
 const MIN_HEIGHT = 640
 const DEFAULT_WIDTH = 1120
 const DEFAULT_HEIGHT = 740
-const BOOTSTRAPPER_WIDTH = 560
-const BOOTSTRAPPER_HEIGHT = 420
+const BOOTSTRAPPER_WIDTH = 600
+const BOOTSTRAPPER_HEIGHT = 470
+/** Tallest the install/launch window may be, including custom definitions. */
+const BOOTSTRAPPER_MAX_HEIGHT = 520
 
 let mainWindow: BrowserWindow | null = null
 let bootstrapperWindow: BrowserWindow | null = null
@@ -237,7 +239,7 @@ function launcherWindowSize(): { width: number; height: number; background: stri
       typeof parsed.width === 'number' ? Math.min(Math.max(parsed.width, 360), 900) : fallback.width
     const height =
       typeof parsed.height === 'number'
-        ? Math.min(Math.max(parsed.height, 120), 420)
+        ? Math.min(Math.max(parsed.height, 120), BOOTSTRAPPER_MAX_HEIGHT)
         : fallback.height
     const background =
       typeof parsed.background === 'string' && /^#[0-9a-f]{3,8}$/i.test(parsed.background.trim())
@@ -277,7 +279,7 @@ export function showBootstrapperWindow(): BrowserWindow {
     minWidth: Math.min(width, 360),
     minHeight: Math.min(height, 120),
     maxWidth: 900,
-    maxHeight: 420,
+    maxHeight: BOOTSTRAPPER_MAX_HEIGHT,
     show: false,
     frame: false,
     resizable: false,

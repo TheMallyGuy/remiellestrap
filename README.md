@@ -208,7 +208,7 @@ Worth walking through after a change that touches the launch path:
 - **[Froststrap](https://github.com/Froststrap/Froststrap)** — the feature bar this
   project measures itself against.
 - **Remielle Dan** — the character this interface is built around.
-- **Safebooru** — where the artwork comes from.
+- **Safebooru / Danbooru** — where the artwork comes from.
 
 ## Licence
 

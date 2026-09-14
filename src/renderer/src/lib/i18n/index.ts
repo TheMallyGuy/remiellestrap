@@ -48,7 +48,7 @@ const en: Dictionary = {
     'Add an account with a real sign-in window, a Quick Log In code from your phone, or a pasted cookie. Cookies are sealed with your OS credential store and never stored in the clear.',
   'onboarding.art.title': 'Dress it up — or not',
   'onboarding.art.body':
-    'Every art slot can show Remielle artwork from Safebooru, a picture of your own, or nothing at all. Shuffle a slot at any time; the choice is remembered per slot.',
+    'Every art slot can show Remielle artwork from Safebooru or Danbooru, a picture of your own, or nothing at all. Shuffle a slot at any time; the choice is remembered per slot.',
   'onboarding.launch.title': 'Ready to launch',
   'onboarding.launch.body':
     'Press Play on the Home page. Mods and flags are applied on the way in, and the Cleaner keeps the folders from piling up.'

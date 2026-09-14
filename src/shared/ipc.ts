@@ -7,7 +7,7 @@
  * from here, so a channel cannot be added on one side only.
  */
 
-import type { AppSettings, CleanerCategory, WindowEffect } from './settings'
+import type { AppSettings, BooruProvider, CleanerCategory, WindowEffect } from './settings'
 import type { AppState, RobloxState, UiState } from './state'
 import type {
   AccountAddRequest,
@@ -177,7 +177,10 @@ export interface InvokeMap {
   'booru:getArtForSlot': { request: ArtRequest; response: ArtAsset | null }
   'booru:clearCache': { request: void; response: CacheStats }
   'booru:getCacheStats': { request: void; response: CacheStats }
-  'booru:openPost': { request: { postId: number }; response: OperationResult }
+  'booru:openPost': {
+    request: { postId: number; source?: BooruProvider }
+    response: OperationResult
+  }
 
   /* fastflags */
   'fastflags:getProfiles': { request: void; response: FlagProfile[] }

@@ -3,13 +3,19 @@
     AccentMode,
     ArtSlot as Slot,
     BackgroundStyle,
+    BooruProvider,
     IconStyle,
     LauncherStyle,
     SidebarMode,
     ThemeMode,
     WindowEffect
   } from '@shared/settings'
-  import { ART_SLOTS, DEFAULT_BOORU_TAGS } from '@shared/settings'
+  import {
+    ART_SLOTS,
+    BOORU_PROVIDERS,
+    DEFAULT_BOORU_TAGS,
+    booruProviderLabel
+  } from '@shared/settings'
   import {
     BACKGROUND_STYLES,
     LAUNCHER_STYLES,
@@ -32,7 +38,7 @@
   import type { CacheStats, FontCatalog, WindowEffectState } from '@shared/models'
 
   /**
-   * Appearance: theme, accent, and the Safebooru art pipeline.
+   * Appearance: theme, accent, and the image-board art pipeline.
    *
    * Every slot's tag query is editable here, because the whole point of the
    * runtime pipeline is that the art is not baked into the app.
@@ -82,6 +88,14 @@
   let stats = $state<CacheStats | null>(null)
   let clearing = $state(false)
   let refreshing = $state(false)
+  let switchingProvider = $state(false)
+
+  const providerLabel = $derived(booruProviderLabel(settings.value.booruProvider))
+
+  /** Danbooru sign-in drafts, committed on blur like the tag queries. */
+  let danbooruLoginDraft = $state('')
+  let danbooruApiKeyDraft = $state('')
+  let credentialsSeeded = $state(false)
 
   /* ------------------------------------------------ Window, font, launcher */
 
@@ -214,6 +228,49 @@
   })
 
   $effect(() => {
+    if (settings.loaded && !credentialsSeeded) {
+      danbooruLoginDraft = settings.value.danbooruLogin
+      danbooruApiKeyDraft = settings.value.danbooruApiKey
+      credentialsSeeded = true
+    }
+  })
+
+  async function switchProvider(next: BooruProvider): Promise<void> {
+    if (next === settings.value.booruProvider || switchingProvider || refreshing) return
+    switchingProvider = true
+
+    try {
+      await updateSettings({ booruProvider: next })
+
+      // Post ids collide across boards, so every slot is re-rolled rather
+      // than reusing art cached from the previous provider.
+      for (const slot of ART_SLOTS) await loadArt(slot, true)
+      await refreshStats()
+
+      const loaded = ART_SLOTS.filter((slot) => Boolean(artSlot(slot).asset)).length
+      pushToast({
+        kind: loaded > 0 ? 'success' : 'warning',
+        title:
+          loaded > 0
+            ? `Artwork now comes from ${booruProviderLabel(next)}`
+            : `No artwork found on ${booruProviderLabel(next)}`,
+        message:
+          loaded > 0 ? `Updated ${loaded} of ${ART_SLOTS.length} appearance slots.` : undefined
+      })
+    } finally {
+      switchingProvider = false
+    }
+  }
+
+  async function commitDanbooruCredentials(): Promise<void> {
+    if (!credentialsSeeded) return
+    const login = danbooruLoginDraft.trim()
+    const apiKey = danbooruApiKeyDraft.trim()
+    if (login === settings.value.danbooruLogin && apiKey === settings.value.danbooruApiKey) return
+    await updateSettings({ danbooruLogin: login, danbooruApiKey: apiKey })
+  }
+
+  $effect(() => {
     void refreshStats()
   })
 
@@ -256,7 +313,7 @@
     refreshing = true
 
     try {
-      // Keep requests sequential so Safebooru is not hit with a burst of five
+      // Keep requests sequential so the board is not hit with a burst of
       // searches and image downloads at once.
       for (const slot of ART_SLOTS) await loadArt(slot, true)
       await refreshStats()
@@ -264,7 +321,8 @@
       const loaded = ART_SLOTS.filter((slot) => Boolean(artSlot(slot).asset)).length
       pushToast({
         kind: loaded > 0 ? 'success' : 'warning',
-        title: loaded > 0 ? 'Fetched new artwork from Safebooru' : 'No new artwork was found',
+        title:
+          loaded > 0 ? `Fetched new artwork from ${providerLabel}` : 'No new artwork was found',
         message:
           loaded > 0 ? `Updated ${loaded} of ${ART_SLOTS.length} appearance slots.` : undefined
       })
@@ -410,10 +468,107 @@
 
 <Section
   title="Artwork"
-  description="Art is fetched from Safebooru at runtime and cached locally — nothing is bundled with the app. Each slot takes a space-separated tag query. Shuffle to pin a different post."
+  description="Art is fetched from {providerLabel} at runtime and cached locally — nothing is bundled with the app. Each slot takes a space-separated tag query. Shuffle to pin a different post."
   actions={cacheActions}
   bare
 >
+  <div class="surface mb-3 p-4">
+    <div class="flex items-start justify-between gap-3">
+      <div class="min-w-0">
+        <h3 class="text-[0.8125rem] font-medium text-ivory-100">Image board</h3>
+        <p class="mt-0.5 text-2xs leading-relaxed text-ivory-500">
+          Where every slot searches. Switching re-fetches all artwork.
+        </p>
+      </div>
+      {#if switchingProvider}
+        <span class="chip shrink-0">
+          <Icon name="spinner" size={11} class="animate-spin" />
+          Switching…
+        </span>
+      {/if}
+    </div>
+
+    <div class="mt-3 grid grid-cols-2 gap-2.5">
+      {#each BOORU_PROVIDERS as provider (provider.value)}
+        {@const active = settings.value.booruProvider === provider.value}
+        <button
+          type="button"
+          class="rounded-control border p-3 text-left transition-colors {active
+            ? 'border-gold-500/45 bg-gold-500/8'
+            : 'border-ivory-200/10 bg-ink-950/40 hover:border-ivory-200/20'}"
+          onclick={() => void switchProvider(provider.value)}
+          disabled={switchingProvider || refreshing}
+          aria-pressed={active}
+        >
+          <div class="flex items-center justify-between">
+            <span class="text-[0.8125rem] font-medium text-ivory-100">{provider.label}</span>
+            {#if active}
+              <span class="text-gold-300"><Icon name="check" size={13} /></span>
+            {/if}
+          </div>
+          <p class="mt-1 text-2xs leading-relaxed text-ivory-500">{provider.hint}</p>
+        </button>
+      {/each}
+    </div>
+
+    {#if settings.value.booruProvider === 'danbooru'}
+      <div class="mt-3 space-y-2.5 border-t border-ivory-200/6 pt-3">
+        <div class="grid grid-cols-2 gap-2.5">
+          <label class="block">
+            <span class="mb-1 block text-2xs text-ivory-400">Danbooru username</span>
+            <input
+              class="field field-mono"
+              value={danbooruLoginDraft}
+              spellcheck="false"
+              autocomplete="off"
+              placeholder="optional"
+              aria-label="Danbooru username"
+              oninput={(event) => (danbooruLoginDraft = event.currentTarget.value)}
+              onblur={() => void commitDanbooruCredentials()}
+              onkeydown={(event) => {
+                if (event.key === 'Enter') event.currentTarget.blur()
+              }}
+            />
+          </label>
+          <label class="block">
+            <span class="mb-1 block text-2xs text-ivory-400">API key</span>
+            <input
+              class="field field-mono"
+              type="password"
+              value={danbooruApiKeyDraft}
+              spellcheck="false"
+              autocomplete="off"
+              placeholder="optional"
+              aria-label="Danbooru API key"
+              oninput={(event) => (danbooruApiKeyDraft = event.currentTarget.value)}
+              onblur={() => void commitDanbooruCredentials()}
+              onkeydown={(event) => {
+                if (event.key === 'Enter') event.currentTarget.blur()
+              }}
+            />
+          </label>
+        </div>
+        <p class="text-2xs leading-relaxed text-ivory-600">
+          Anonymous searches are rate-limited. Generate a key on your Danbooru profile page and
+          paste it here for higher limits — it is sent only to Danbooru.
+        </p>
+        <div class="flex items-center justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-[0.8125rem] text-ivory-100">Safe posts only</p>
+            <p class="mt-0.5 text-2xs leading-relaxed text-ivory-500">
+              Exclude questionable and explicit posts from Danbooru searches.
+            </p>
+          </div>
+          <Switch
+            checked={settings.value.danbooruSafeOnly}
+            label="Safe posts only"
+            onchange={(value) => void updateSettings({ danbooruSafeOnly: value })}
+          />
+        </div>
+      </div>
+    {/if}
+  </div>
+
   <div class="space-y-3">
     {#each ART_SLOTS as slot (slot)}
       {@const state = artSlot(slot)}

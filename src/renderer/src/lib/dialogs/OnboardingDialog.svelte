@@ -51,7 +51,7 @@
       title: t('onboarding.art.title', 'Dress it up — or not'),
       body: t(
         'onboarding.art.body',
-        'Every art slot can show Remielle artwork from Safebooru, a picture of your own, or nothing at all. Shuffle a slot at any time; the choice is remembered per slot.'
+        'Every art slot can show Remielle artwork from Safebooru or Danbooru, a picture of your own, or nothing at all. Shuffle a slot at any time; the choice is remembered per slot.'
       )
     },
     {
