@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { AllowlistSeverity, LaunchMode, ProcessPriority } from '@shared/settings'
   import { SUPPORTED_LANGUAGES } from '@shared/settings'
+  import type { SystemInfo } from '@shared/models'
   import { api } from '../ipc'
   import { accounts } from '../stores/accounts.svelte'
   import { pushToast } from '../stores/toasts.svelte'
@@ -49,8 +50,19 @@
   let argumentsDraft = $state<string | null>(null)
   let affinityDraft = $state<string | null>(null)
   let savingAffinity = $state(false)
+  let systemInfo = $state<SystemInfo | null>(null)
 
   const affinityValue = $derived(affinityDraft ?? settings.value.cpuAffinity)
+
+  $effect(() => {
+    void (async () => {
+      try {
+        systemInfo = await api.system.getInfo()
+      } catch {
+        // Non-critical: only used to gate a platform-specific warning label.
+      }
+    })()
+  })
 
   /** Parses "0-3,6" into core numbers, or null for "all cores". */
   function parseAffinity(text: string): number[] | null {
@@ -375,7 +387,9 @@
   <SettingRow
     title="Multi-instance launching"
     description="Lets a second client start while one is already running. RemielleStrap holds the singleton objects Roblox checks, and releases them once every client has exited."
-    warning={process.platform === 'win32' ? undefined : 'This is a Windows-only feature.'}
+    warning={systemInfo && systemInfo.platform !== 'win32'
+      ? 'This is a Windows-only feature.'
+      : undefined}
   >
     <Switch
       checked={settings.value.multiInstanceLaunching}
