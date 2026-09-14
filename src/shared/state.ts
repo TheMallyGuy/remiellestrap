@@ -84,6 +84,11 @@ export interface AppState {
 export interface CachedArt {
   slot: string
   postId: number
+  /**
+   * Which image board served this entry. Optional only so caches written
+   * before providers existed still load — those are always Safebooru.
+   */
+  source?: import('./settings').BooruProvider
   fileName: string
   previewFileName: string | null
   width: number

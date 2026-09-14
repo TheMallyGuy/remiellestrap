@@ -9,7 +9,7 @@ import { api } from '../ipc'
  * The main process owns fetching, caching and disk hygiene; the renderer only
  * ever receives an `app://` URL pointing at an already-downloaded file. A slot
  * has three observable states: loading, resolved with an asset, or resolved
- * with `null` (Safebooru unreachable or no matching post — the UI then falls
+ * with `null` (board unreachable or no matching post — the UI then falls
  * back to a plain treatment rather than showing a broken image).
  */
 

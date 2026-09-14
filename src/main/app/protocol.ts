@@ -7,7 +7,7 @@ import { createLogger } from '../utils/logger'
 
 /**
  * Custom `app://` protocol used to serve local files to the renderer: cached
- * Safebooru artwork, the user's chosen backdrop, and any font they supplied.
+ * image-board artwork, the user's chosen backdrop, and any font they supplied.
  *
  * Serving these over a dedicated scheme rather than `file://` means the
  * Content-Security-Policy never has to allow `file:` in `img-src` or

@@ -88,7 +88,7 @@ import type {
   VersionActionRequest,
   WindowEffectState
 } from '@shared/models'
-import type { AppSettings, CleanerCategory, WindowEffect } from '@shared/settings'
+import type { AppSettings, BooruProvider, CleanerCategory, WindowEffect } from '@shared/settings'
 import type { AppState, RobloxState, UiState } from '@shared/state'
 
 /**
@@ -263,7 +263,8 @@ const api = {
       invoke('booru:getArtForSlot', request),
     clearCache: (): Promise<CacheStats> => invoke('booru:clearCache'),
     getCacheStats: (): Promise<CacheStats> => invoke('booru:getCacheStats'),
-    openPost: (postId: number): Promise<OperationResult> => invoke('booru:openPost', { postId })
+    openPost: (postId: number, source?: BooruProvider): Promise<OperationResult> =>
+      invoke('booru:openPost', { postId, source })
   },
 
   fastflags: {

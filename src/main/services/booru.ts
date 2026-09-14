@@ -7,14 +7,20 @@ import type {
   BooruSearchRequest,
   CacheStats
 } from '@shared/models'
-import { DEFAULT_BOORU_TAGS, type ArtSlot, ART_SLOTS } from '@shared/settings'
+import {
+  DEFAULT_BOORU_TAGS,
+  booruProviderLabel,
+  type ArtSlot,
+  type BooruProvider,
+  ART_SLOTS
+} from '@shared/settings'
 import type { CachedArt } from '@shared/state'
 import { paths } from '../utils/paths'
 import { artUrl } from '../app/protocol'
 import { dirStats, ensureDir, pathExists, removeDir } from '../utils/fs'
 import { shortId } from '../utils/hash'
 import { createLogger } from '../utils/logger'
-import { getBuffer, getJson } from './http'
+import { HttpError, getBuffer, getJson } from './http'
 import { getSettings, saveSettingsQuiet } from './settingsStore'
 import { clearArtCacheState, getState, loadState, setCachedArt } from './stateStore'
 import { emit } from './events'
@@ -23,20 +29,45 @@ const logger = createLogger('Booru')
 const inFlightArt = new Map<string, Promise<ArtAsset | null>>()
 
 /**
- * Safebooru runtime art pipeline.
+ * Runtime art pipeline.
  *
- * All Remielle artwork is fetched from Safebooru's DAPI at runtime — nothing
- * is bundled with the app. Chosen posts are persisted per slot so the UI is
- * stable between launches, and image bytes are cached on disk so the final
- * view renders local files instead of hotlinking the remote CDN.
+ * All Remielle artwork is fetched from an image board's public API at
+ * runtime — nothing is bundled with the app. Safebooru is the default; the
+ * user can switch to Danbooru in Appearance. Chosen posts are persisted per
+ * slot so the UI is stable between launches, and image bytes are cached on
+ * disk so the final view renders local files instead of hotlinking a CDN.
  */
 
-const SAFEBOORU_ORIGIN = 'https://safebooru.org'
-const API_BASE = `${SAFEBOORU_ORIGIN}/index.php`
-const POST_PAGE = `${SAFEBOORU_ORIGIN}/index.php?page=post&s=view&id=`
-const SAFEBOORU_HEADERS = {
-  Referer: `${SAFEBOORU_ORIGIN}/`,
-  'Accept-Language': 'en-US,en;q=0.8'
+interface ProviderConfig {
+  id: BooruProvider
+  origin: string
+  postPage: string
+  headers: Record<string, string>
+  /** Hosts image bytes are accepted from. Post pages live on `origin`. */
+  imageHosts: ReadonlySet<string>
+}
+
+const PROVIDERS: Record<BooruProvider, ProviderConfig> = {
+  safebooru: {
+    id: 'safebooru',
+    origin: 'https://safebooru.org',
+    postPage: 'https://safebooru.org/index.php?page=post&s=view&id=',
+    headers: {
+      Referer: 'https://safebooru.org/',
+      'Accept-Language': 'en-US,en;q=0.8'
+    },
+    imageHosts: new Set(['safebooru.org'])
+  },
+  danbooru: {
+    id: 'danbooru',
+    origin: 'https://danbooru.donmai.us',
+    postPage: 'https://danbooru.donmai.us/posts/',
+    headers: {
+      Referer: 'https://danbooru.donmai.us/',
+      'Accept-Language': 'en-US,en;q=0.8'
+    },
+    imageHosts: new Set(['cdn.donmai.us', 'danbooru.donmai.us'])
+  }
 }
 
 /** Hard cap for the on-disk art cache. */
@@ -44,8 +75,46 @@ const MAX_CACHE_BYTES = 256 * 1024 * 1024
 const MAX_IMAGE_BYTES = 24 * 1024 * 1024
 const ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif'])
 
+function resolveProvider(requested?: unknown): BooruProvider {
+  if (requested === 'danbooru' || requested === 'safebooru') return requested
+  return getSettings().booruProvider === 'danbooru' ? 'danbooru' : 'safebooru'
+}
+
+/** Accept only image URLs served by the provider's own hosts. */
+function providerImageUrl(
+  value: string | null | undefined,
+  provider: BooruProvider
+): string | null {
+  if (!value) return null
+  try {
+    const config = PROVIDERS[provider]
+    const url = new URL(value, config.origin)
+    if (url.protocol !== 'https:' || !config.imageHosts.has(url.hostname.toLowerCase())) {
+      return null
+    }
+    return url.toString()
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The extension of a remote URL's path. `extname` is run on the pathname —
+ * not the raw URL — so query strings (`image.jpg?123`) cannot break the
+ * allowlist check.
+ */
+function extensionOf(url: string): string {
+  try {
+    return extname(new URL(url).pathname).toLowerCase()
+  } catch {
+    return extname(url.split('?')[0].split('#')[0]).toLowerCase()
+  }
+}
+
+/* ------------------------------------------------------------ Safebooru */
+
 /** Safebooru's raw DAPI post shape (json=1). */
-interface RawPost {
+interface SafebooruRawPost {
   id?: number
   directory?: string | number
   image?: string
@@ -65,34 +134,22 @@ interface RawPost {
   change?: number
 }
 
-/** Accept only image URLs served by the real Safebooru origin. */
-function safebooruUrl(value: string | undefined): string | null {
-  if (!value) return null
-  try {
-    const url = new URL(value, SAFEBOORU_ORIGIN)
-    if (url.protocol !== 'https:' || url.hostname.toLowerCase() !== 'safebooru.org') return null
-    return url.toString()
-  } catch {
-    return null
-  }
-}
-
 /**
  * Safebooru's json=1 responses omit absolute URLs in some deployments, so we
  * reconstruct them from `directory` + `image` the same way the site does.
  */
-function buildUrls(
-  raw: RawPost
+function buildSafebooruUrls(
+  raw: SafebooruRawPost
 ): { fileUrl: string; previewUrl: string; sampleUrl: string | null } | null {
-  const suppliedFile = safebooruUrl(raw.file_url)
-  const suppliedPreview = safebooruUrl(raw.preview_url)
+  const suppliedFile = providerImageUrl(raw.file_url, 'safebooru')
+  const suppliedPreview = providerImageUrl(raw.preview_url, 'safebooru')
   const hasSample = raw.sample === true || raw.sample === 1
 
   if (suppliedFile && suppliedPreview) {
     return {
       fileUrl: suppliedFile,
       previewUrl: suppliedPreview,
-      sampleUrl: hasSample ? safebooruUrl(raw.sample_url) : null
+      sampleUrl: hasSample ? providerImageUrl(raw.sample_url, 'safebooru') : null
     }
   }
 
@@ -101,20 +158,23 @@ function buildUrls(
   if (!/^\d+$/.test(directory) || !/^[a-zA-Z0-9._-]+$/.test(image)) return null
 
   const base = image.replace(/\.[^.]+$/, '')
-  const fileUrl = `${SAFEBOORU_ORIGIN}/images/${directory}/${image}`
-  const previewUrl = `${SAFEBOORU_ORIGIN}/thumbnails/${directory}/thumbnail_${base}.jpg`
-  const sampleUrl = hasSample ? `${SAFEBOORU_ORIGIN}/samples/${directory}/sample_${base}.jpg` : null
+  const fileUrl = `${PROVIDERS.safebooru.origin}/images/${directory}/${image}`
+  const previewUrl = `${PROVIDERS.safebooru.origin}/thumbnails/${directory}/thumbnail_${base}.jpg`
+  const sampleUrl = hasSample
+    ? `${PROVIDERS.safebooru.origin}/samples/${directory}/sample_${base}.jpg`
+    : null
 
   return { fileUrl, previewUrl, sampleUrl }
 }
 
-function toPost(raw: RawPost): BooruPost | null {
+function toSafebooruPost(raw: SafebooruRawPost): BooruPost | null {
   if (typeof raw.id !== 'number') return null
-  const urls = buildUrls(raw)
+  const urls = buildSafebooruUrls(raw)
   if (!urls) return null
 
   return {
     id: raw.id,
+    source: 'safebooru',
     fileUrl: urls.fileUrl,
     previewUrl: urls.previewUrl,
     sampleUrl: urls.sampleUrl,
@@ -123,11 +183,11 @@ function toPost(raw: RawPost): BooruPost | null {
     tags: raw.tags ?? '',
     rating: raw.rating ?? 'safe',
     score: typeof raw.score === 'number' ? raw.score : 0,
-    postUrl: `${POST_PAGE}${raw.id}`
+    postUrl: `${PROVIDERS.safebooru.postPage}${raw.id}`
   }
 }
 
-function buildSearchUrl(tags: string, page: number, limit: number): string {
+function buildSafebooruSearchUrl(tags: string, page: number, limit: number): string {
   const params = new URLSearchParams({
     page: 'dapi',
     s: 'post',
@@ -137,10 +197,174 @@ function buildSearchUrl(tags: string, page: number, limit: number): string {
     pid: String(Math.max(page, 0)),
     tags: tags.trim()
   })
-  return `${API_BASE}?${params.toString()}`
+  return `${PROVIDERS.safebooru.origin}/index.php?${params.toString()}`
 }
 
 /** Raw Safebooru search. Returns [] when nothing matches. */
+async function searchSafebooru(
+  tags: string,
+  page: number,
+  limit: number,
+  signal?: AbortSignal
+): Promise<BooruPost[]> {
+  const url = buildSafebooruSearchUrl(tags, page, limit)
+  logger.info(`Searching Safebooru: ${tags} (page ${Math.max(page, 0)})`)
+
+  try {
+    const payload = await getJson<SafebooruRawPost[] | { post?: SafebooruRawPost[] } | null>(url, {
+      signal,
+      retries: 2,
+      headers: PROVIDERS.safebooru.headers
+    })
+
+    // Safebooru returns a bare array, an empty string, or occasionally an
+    // object wrapper depending on the result count.
+    const rawPosts: SafebooruRawPost[] = Array.isArray(payload)
+      ? payload
+      : payload && Array.isArray(payload.post)
+        ? payload.post
+        : []
+
+    const posts = rawPosts
+      .map(toSafebooruPost)
+      .filter((post): post is BooruPost => post !== null)
+      .filter((post) => ALLOWED_EXTENSIONS.has(extensionOf(post.fileUrl)))
+
+    logger.info(`Found ${posts.length} Safebooru post(s) for "${tags}"`)
+    return posts
+  } catch (error) {
+    logger.error(`Safebooru search failed for "${tags}": ${String(error)}`)
+    throw error instanceof Error ? error : new Error(String(error))
+  }
+}
+
+/* ------------------------------------------------------------- Danbooru */
+
+/** Danbooru's raw /posts.json shape (only the fields we read). */
+interface DanbooruRawPost {
+  id?: number
+  file_url?: string | null
+  large_file_url?: string | null
+  preview_file_url?: string | null
+  image_width?: number | null
+  image_height?: number | null
+  tag_string?: string
+  rating?: string
+  score?: number | null
+  file_ext?: string
+  is_deleted?: boolean
+  is_banned?: boolean
+}
+
+const DANBOORU_RATINGS: Record<string, string> = {
+  g: 'general',
+  s: 'sensitive',
+  q: 'questionable',
+  e: 'explicit'
+}
+
+function toDanbooruPost(raw: DanbooruRawPost): BooruPost | null {
+  if (typeof raw.id !== 'number') return null
+  // Deleted and banned posts have no usable file.
+  if (raw.is_deleted === true || raw.is_banned === true) return null
+
+  const fileUrl = providerImageUrl(raw.file_url, 'danbooru')
+  if (!fileUrl) return null
+  if (!ALLOWED_EXTENSIONS.has(extensionOf(fileUrl))) return null
+  // Belt and braces: Danbooru declares the type outright — ugoira (zip) and
+  // video (mp4/webm) posts never reach the image pipeline.
+  if (raw.file_ext && !ALLOWED_EXTENSIONS.has(`.${raw.file_ext.toLowerCase()}`)) return null
+
+  return {
+    id: raw.id,
+    source: 'danbooru',
+    fileUrl,
+    previewUrl: providerImageUrl(raw.preview_file_url, 'danbooru') ?? fileUrl,
+    sampleUrl: providerImageUrl(raw.large_file_url, 'danbooru'),
+    width: raw.image_width ?? 0,
+    height: raw.image_height ?? 0,
+    tags: raw.tag_string ?? '',
+    rating: DANBOORU_RATINGS[raw.rating ?? ''] ?? raw.rating ?? 'unknown',
+    score: typeof raw.score === 'number' ? raw.score : 0,
+    postUrl: `${PROVIDERS.danbooru.postPage}${raw.id}`
+  }
+}
+
+/**
+ * Appends `-rating:q -rating:e` unless safe-only is off or the query already
+ * constrains the rating itself. Danbooru — unlike Safebooru — hosts explicit
+ * posts, so the default keeps the launcher safe-for-work.
+ */
+function withDanbooruSafeOnly(tags: string): string {
+  if (!getSettings().danbooruSafeOnly) return tags
+  if (/(?:^|\s)-?rating\s*:/i.test(tags)) return tags
+  return `${tags} -rating:q -rating:e`.trim()
+}
+
+function buildDanbooruSearchUrl(tags: string, page: number, limit: number): string {
+  const params = new URLSearchParams({
+    tags: withDanbooruSafeOnly(tags).trim(),
+    // Danbooru pages are 1-based; ours are 0-based.
+    page: String(Math.max(page, 0) + 1),
+    limit: String(Math.min(Math.max(limit, 1), 100))
+  })
+
+  // Authenticated callers get far higher rate limits. These values are sent
+  // only to Danbooru, and the URL carrying them is never logged.
+  const login = getSettings().danbooruLogin.trim()
+  const apiKey = getSettings().danbooruApiKey.trim()
+  if (login.length > 0 && apiKey.length > 0) {
+    params.set('login', login)
+    params.set('api_key', apiKey)
+  }
+
+  return `${PROVIDERS.danbooru.origin}/posts.json?${params.toString()}`
+}
+
+/** Raw Danbooru search. Returns [] when nothing matches. */
+async function searchDanbooru(
+  tags: string,
+  page: number,
+  limit: number,
+  signal?: AbortSignal
+): Promise<BooruPost[]> {
+  const url = buildDanbooruSearchUrl(tags, page, limit)
+  logger.info(`Searching Danbooru: ${tags} (page ${Math.max(page, 0)})`)
+
+  try {
+    const payload = await getJson<DanbooruRawPost[] | null>(url, {
+      signal,
+      retries: 2,
+      headers: PROVIDERS.danbooru.headers
+    })
+
+    const posts = (Array.isArray(payload) ? payload : [])
+      .map(toDanbooruPost)
+      .filter((post): post is BooruPost => post !== null)
+
+    logger.info(`Found ${posts.length} Danbooru post(s) for "${tags}"`)
+    return posts
+  } catch (error) {
+    if (error instanceof HttpError && error.status === 429) {
+      logger.error(`Danbooru rate limit hit for "${tags}"`)
+      throw new Error(
+        'Danbooru rate-limited this search. Wait a minute, or add a Danbooru login and API key in Appearance for higher limits.'
+      )
+    }
+    if (error instanceof HttpError && (error.status === 401 || error.status === 403)) {
+      logger.error(`Danbooru rejected the request for "${tags}" (HTTP ${error.status})`)
+      throw new Error(
+        'Danbooru rejected this search. If you entered a login and API key, double-check them in Appearance.'
+      )
+    }
+    logger.error(`Danbooru search failed for "${tags}": ${String(error)}`)
+    throw error instanceof Error ? error : new Error(String(error))
+  }
+}
+
+/* ---------------------------------------------------------------- search */
+
+/** Raw provider search. Returns [] when nothing matches. */
 export async function searchPosts(
   request: BooruSearchRequest,
   signal?: AbortSignal
@@ -148,35 +372,13 @@ export async function searchPosts(
   const tags = (request.tags ?? '').trim()
   if (tags.length === 0) return []
 
-  const url = buildSearchUrl(tags, request.page ?? 0, request.limit ?? 40)
-  logger.info(`Searching: ${tags} (page ${request.page ?? 0})`)
+  const provider = resolveProvider(request.provider)
+  const page = request.page ?? 0
+  const limit = request.limit ?? 40
 
-  try {
-    const payload = await getJson<RawPost[] | { post?: RawPost[] } | null>(url, {
-      signal,
-      retries: 2,
-      headers: SAFEBOORU_HEADERS
-    })
-
-    // Safebooru returns a bare array, an empty string, or occasionally an
-    // object wrapper depending on the result count.
-    const rawPosts: RawPost[] = Array.isArray(payload)
-      ? payload
-      : payload && Array.isArray(payload.post)
-        ? payload.post
-        : []
-
-    const posts = rawPosts
-      .map(toPost)
-      .filter((post): post is BooruPost => post !== null)
-      .filter((post) => ALLOWED_EXTENSIONS.has(extname(post.fileUrl).toLowerCase()))
-
-    logger.info(`Found ${posts.length} post(s) for "${tags}"`)
-    return posts
-  } catch (error) {
-    logger.error(`Search failed for "${tags}": ${String(error)}`)
-    throw error instanceof Error ? error : new Error(String(error))
-  }
+  return provider === 'danbooru'
+    ? searchDanbooru(tags, page, limit, signal)
+    : searchSafebooru(tags, page, limit, signal)
 }
 
 /**
@@ -200,11 +402,12 @@ function fallbackChain(tags: string, slot: string): string[] {
 async function searchWithFallback(
   tags: string,
   slot: string,
+  provider: BooruProvider,
   signal?: AbortSignal
 ): Promise<{ posts: BooruPost[]; usedTags: string }> {
   for (const candidate of fallbackChain(tags, slot)) {
     try {
-      const posts = await searchPosts({ tags: candidate, limit: 60 }, signal)
+      const posts = await searchPosts({ tags: candidate, limit: 60, provider }, signal)
       if (posts.length > 0) return { posts, usedTags: candidate }
       logger.warn(`No results for "${candidate}", trying next fallback`)
     } catch (error) {
@@ -214,10 +417,13 @@ async function searchWithFallback(
   return { posts: [], usedTags: tags }
 }
 
-function cacheFileName(postId: number, url: string): string {
-  const ext = extname(new URL(url).pathname).toLowerCase()
+/* ----------------------------------------------------------------- cache */
+
+function cacheFileName(provider: BooruProvider, postId: number, url: string): string {
+  const ext = extensionOf(url)
   const safeExt = ALLOWED_EXTENSIONS.has(ext) ? ext : '.jpg'
-  return `${postId}-${shortId(url, 8)}${safeExt}`
+  // Namespaced per provider: post ids collide across boards.
+  return `${provider}-${postId}-${shortId(url, 8)}${safeExt}`
 }
 
 function hasImageSignature(buffer: Buffer): boolean {
@@ -241,9 +447,10 @@ function hasImageSignature(buffer: Buffer): boolean {
 async function cacheImage(
   url: string,
   postId: number,
+  provider: BooruProvider,
   signal?: AbortSignal
 ): Promise<string | null> {
-  const fileName = cacheFileName(postId, url)
+  const fileName = cacheFileName(provider, postId, url)
   const target = join(paths.artCache, fileName)
 
   if (await pathExists(target)) {
@@ -268,14 +475,14 @@ async function cacheImage(
       signal,
       timeoutMs: 45_000,
       headers: {
-        ...SAFEBOORU_HEADERS,
+        ...PROVIDERS[provider].headers,
         Accept: 'image/webp,image/png,image/jpeg,image/gif,image/*;q=0.8'
       }
     })
 
     if (buffer.byteLength === 0) throw new Error('Empty image response')
     if (!hasImageSignature(buffer)) {
-      throw new Error('Safebooru returned something other than an image')
+      throw new Error(`${booruProviderLabel(provider)} returned something other than an image`)
     }
     if (buffer.byteLength > MAX_IMAGE_BYTES) {
       logger.warn(`Skipping ${url}: ${buffer.byteLength} bytes exceeds cache limit`)
@@ -283,7 +490,7 @@ async function cacheImage(
     }
 
     await fs.writeFile(target, buffer)
-    logger.info(`Cached post ${postId} (${buffer.byteLength} bytes) as ${fileName}`)
+    logger.info(`Cached ${provider} post ${postId} (${buffer.byteLength} bytes) as ${fileName}`)
     return fileName
   } catch (error) {
     logger.error(`Failed to cache ${url}: ${String(error)}`)
@@ -295,6 +502,7 @@ function toAsset(cached: CachedArt): ArtAsset {
   return {
     slot: cached.slot,
     postId: cached.postId,
+    source: cached.source ?? 'safebooru',
     url: artUrl(cached.fileName),
     previewUrl: cached.previewFileName ? artUrl(cached.previewFileName) : null,
     width: cached.width,
@@ -341,10 +549,11 @@ export async function getArtForSlot(
   signal?: AbortSignal
 ): Promise<ArtAsset | null> {
   // Startup prefetch and the first renderer paint often ask for the same slot
-  // together. Coalesce those reads so they result in one real DAPI request.
+  // together. Coalesce those reads so they result in one real API request.
   // Explicit shuffles always bypass this map because the caller asked for a
   // newly selected post.
-  const key = `${request.slot}\u0000${request.tags?.trim() ?? ''}`
+  const provider = resolveProvider()
+  const key = `${provider}\u0000${request.slot}\u0000${request.tags?.trim() ?? ''}`
   if (!request.shuffle) {
     const active = inFlightArt.get(key)
     if (active) return active
@@ -370,6 +579,7 @@ async function resolveArtForSlot(
     throw new Error(`Unknown art slot: ${slot}`)
   }
 
+  const provider = resolveProvider()
   const settings = getSettings()
   await loadState()
   const state = getState()
@@ -379,16 +589,22 @@ async function resolveArtForSlot(
     settings.booruTags[slot as ArtSlot] ||
     DEFAULT_BOORU_TAGS[slot as ArtSlot]
 
-  // Reuse the persisted choice unless the caller explicitly asked to re-roll
-  // or the configured tags changed since it was cached.
-  if (!request.shuffle && cached && cached.tags === configuredTags) {
+  // Reuse the persisted choice unless the caller explicitly asked to re-roll,
+  // the configured tags changed since it was cached, or the artwork now
+  // comes from a different board.
+  if (
+    !request.shuffle &&
+    cached &&
+    cached.tags === configuredTags &&
+    (cached.source ?? 'safebooru') === provider
+  ) {
     if (await pathExists(join(paths.artCache, cached.fileName))) {
       return toAsset(cached)
     }
     logger.warn(`Cached file missing for slot ${slot}, refetching`)
   }
 
-  const { posts } = await searchWithFallback(configuredTags, slot, signal)
+  const { posts } = await searchWithFallback(configuredTags, slot, provider, signal)
   if (posts.length === 0) {
     logger.warn(`No artwork available for slot ${slot}`)
     return cached && (await pathExists(join(paths.artCache, cached.fileName)))
@@ -404,18 +620,21 @@ async function resolveArtForSlot(
   const shouldUseSample = post.sampleUrl !== null && post.width * post.height > 6_000_000
   const sourceUrl = shouldUseSample && post.sampleUrl ? post.sampleUrl : post.fileUrl
 
-  const fileName = await cacheImage(sourceUrl, post.id, signal)
+  const fileName = await cacheImage(sourceUrl, post.id, provider, signal)
   if (!fileName) {
     return cached && (await pathExists(join(paths.artCache, cached.fileName)))
       ? toAsset(cached)
       : null
   }
 
-  const previewFileName = await cacheImage(post.previewUrl, post.id, signal).catch(() => null)
+  const previewFileName = await cacheImage(post.previewUrl, post.id, provider, signal).catch(
+    () => null
+  )
 
   const entry: CachedArt = {
     slot,
     postId: post.id,
+    source: provider,
     fileName,
     previewFileName,
     width: post.width,
@@ -523,6 +742,6 @@ async function enforceCacheBudget(): Promise<void> {
   }
 }
 
-export function postUrlFor(postId: number): string {
-  return `${POST_PAGE}${postId}`
+export function postUrlFor(postId: number, source: BooruProvider = 'safebooru'): string {
+  return `${(PROVIDERS[source] ?? PROVIDERS.safebooru).postPage}${postId}`
 }

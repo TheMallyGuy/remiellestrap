@@ -227,6 +227,14 @@ export function coerceSettings(input: unknown, base: AppSettings = DEFAULT_SETTI
     chosenBooruPosts: has('chosenBooruPosts')
       ? coerceChosenPosts(source.chosenBooruPosts)
       : coerceChosenPosts(base.chosenBooruPosts),
+    booruProvider: pick(
+      value('booruProvider'),
+      ['safebooru', 'danbooru'] as const,
+      base.booruProvider
+    ),
+    danbooruLogin: str(value('danbooruLogin'), base.danbooruLogin, 64).trim(),
+    danbooruApiKey: str(value('danbooruApiKey'), base.danbooruApiKey, 128).trim(),
+    danbooruSafeOnly: bool(value('danbooruSafeOnly'), base.danbooruSafeOnly),
     reduceMotion: bool(value('reduceMotion'), base.reduceMotion),
     showBootstrapperArt: bool(value('showBootstrapperArt'), base.showBootstrapperArt),
     installLocation: nullablePath(value('installLocation'), base.installLocation),

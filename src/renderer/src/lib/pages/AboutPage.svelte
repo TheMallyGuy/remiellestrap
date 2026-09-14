@@ -1,8 +1,10 @@
 <script lang="ts">
   import type { SystemInfo } from '@shared/models'
+  import { booruProviderHome, booruProviderLabel } from '@shared/settings'
   import { api, errorMessage } from '../ipc'
   import { artSlot } from '../stores/art.svelte'
   import { activity } from '../stores/activity.svelte'
+  import { settings } from '../stores/settings.svelte'
   import { pushToast } from '../stores/toasts.svelte'
   import {
     appUpdate,
@@ -27,6 +29,8 @@
   const header = artSlot('about_header')
   const appState = $derived(activity.state)
   const update = $derived(appUpdate.state)
+  const providerLabel = $derived(booruProviderLabel(settings.value.booruProvider))
+  const providerHome = $derived(booruProviderHome(settings.value.booruProvider))
 
   const updateStatus = $derived.by(() => {
     switch (update.status) {
@@ -274,15 +278,16 @@
 <!-- Artwork attribution -->
 <Section
   title="Artwork"
-  description="Every Remielle Dan image in RemielleStrap is fetched from Safebooru at runtime and cached locally. No artwork ships with the application, and nothing is generated."
+  description="Every Remielle Dan image in RemielleStrap is fetched from {providerLabel} at runtime and cached locally. No artwork ships with the application, and nothing is generated."
   class="mt-9"
 >
   <div class="py-3.5">
     <p class="max-w-prose text-xs leading-relaxed text-ivory-400">
-      Images are downloaded through Safebooru's public DAPI, stored in the local cache directory and
-      served to this window over the app's own <code class="font-mono text-ivory-300">app://</code>
+      Images are downloaded through {providerLabel}'s public API, stored in the local cache
+      directory and served to this window over the app's own
+      <code class="font-mono text-ivory-300">app://</code>
       protocol — never hotlinked. Each slot remembers its chosen post so the interface stays stable between
-      launches, and every slot shows the post id it is displaying.
+      launches, and every slot shows the post id it is displaying. The board can be switched in Appearance.
     </p>
 
     <p class="mt-3 max-w-prose text-xs leading-relaxed text-ivory-400">
@@ -291,20 +296,16 @@
     </p>
 
     <div class="mt-4 flex flex-wrap items-center gap-2">
-      <button
-        type="button"
-        class="btn-secondary"
-        onclick={() => void openExternal('https://safebooru.org/')}
-      >
+      <button type="button" class="btn-secondary" onclick={() => void openExternal(providerHome)}>
         <Icon name="external" size={12} />
-        Safebooru
+        {providerLabel}
       </button>
 
       {#if header.asset}
         <button
           type="button"
           class="chip"
-          onclick={() => void api.booru.openPost(header.asset!.postId)}
+          onclick={() => void api.booru.openPost(header.asset!.postId, header.asset!.source)}
         >
           <Icon name="prism" size={11} />
           this header is post #{header.asset.postId}
