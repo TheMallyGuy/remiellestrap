@@ -1,5 +1,7 @@
 # RemielleStrap
 
+𝙚𝙘𝙝𝙤 𝙬𝙖𝙨 𝙝𝙚𝙧𝙚 :3
+
 A Roblox bootstrapper with an opinion about how software should look.
 
 RemielleStrap installs and launches the Roblox client, and along the way it
