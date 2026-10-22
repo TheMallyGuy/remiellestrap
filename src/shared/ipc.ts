@@ -66,6 +66,10 @@ import type {
   ModEntry,
   ModTargetRequest,
   OperationResult,
+  OverlayContentSizeRequest,
+  OverlayPositionRequest,
+  OverlayState,
+  OverlayStats,
   PlaytimeSummary,
   PowerPlan,
   ProcessTweakRequest,
@@ -286,6 +290,18 @@ export interface InvokeMap {
   'window:getEffect': { request: void; response: WindowEffectState }
   'window:setEffect': { request: { effect: WindowEffect }; response: WindowEffectState }
 
+  /* in-game overlay */
+  'overlay:getState': { request: void; response: OverlayState }
+  'overlay:setVisible': { request: { visible: boolean }; response: OverlayState }
+  'overlay:toggle': { request: void; response: OverlayState }
+  /** Draw the overlay with sample figures while no client is running. */
+  'overlay:preview': { request: { enabled: boolean }; response: OverlayState }
+  /** Move the card; `commit` stores it as an offset from the client window. */
+  'overlay:setPosition': { request: OverlayPositionRequest; response: OverlayState }
+  /** The overlay window reporting how large its card actually rendered. */
+  'overlay:setContentSize': { request: OverlayContentSizeRequest; response: void }
+  'overlay:sample': { request: void; response: OverlayStats }
+
   /* activity, rpc, playtime */
   'activity:get': { request: void; response: ActivityUpdate }
   'activity:rejoin': { request: void; response: OperationResult }
@@ -341,6 +357,8 @@ export interface EventMap {
   'logs:line': { path: string; line: LogLine }
   'mods:changed': ModEntry[]
   'studio:bridge': StudioBridgeInfo
+  'overlay:state': OverlayState
+  'overlay:stats': OverlayStats
 }
 
 export type InvokeChannel = keyof InvokeMap
@@ -461,6 +479,13 @@ export const INVOKE_CHANNELS = [
   'window:isMaximized',
   'window:getEffect',
   'window:setEffect',
+  'overlay:getState',
+  'overlay:setVisible',
+  'overlay:toggle',
+  'overlay:preview',
+  'overlay:setPosition',
+  'overlay:setContentSize',
+  'overlay:sample',
   'activity:get',
   'activity:rejoin',
   'activity:copyJoinScript',
@@ -508,7 +533,9 @@ export const EVENT_CHANNELS = [
   'cleaner:progress',
   'logs:line',
   'mods:changed',
-  'studio:bridge'
+  'studio:bridge',
+  'overlay:state',
+  'overlay:stats'
 ] as const satisfies readonly EventChannel[]
 
 type MissingEvent = Exclude<EventChannel, (typeof EVENT_CHANNELS)[number]>

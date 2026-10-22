@@ -220,6 +220,27 @@ function buildMenu(): Menu {
     },
     { type: 'separator' },
     {
+      // The tick reflects the setting rather than the current visibility: an
+      // overlay that is hidden only because nothing is running is still switched
+      // on, and showing otherwise would make the item look self-undoing.
+      label: 'In-game overlay',
+      type: 'checkbox',
+      checked: getSettings().overlayEnabled,
+      click: () => {
+        void saveSettings({ overlayEnabled: !getSettings().overlayEnabled }).catch((error) => {
+          logger.warn(`Could not switch the overlay from the tray: ${String(error)}`)
+        })
+      }
+    },
+    {
+      label: 'Overlay settings…',
+      click: () => {
+        showMainWindow()
+        navigateTo('overlays')
+      }
+    },
+    { type: 'separator' },
+    {
       label: 'Settings',
       click: () => {
         showMainWindow()
@@ -293,7 +314,10 @@ export function createTray(): void {
     onEvent('activity:update', refresh),
     onEvent('activity:leave', refresh),
     onEvent('roblox:exit', refresh),
-    onEvent('bootstrapper:complete', refresh)
+    onEvent('bootstrapper:complete', refresh),
+    // The overlay tick and the region preference both live in settings, and the
+    // menu draws them, so it has to follow a change made from the page too.
+    onEvent('settings:changed', refresh)
   ]
 
   logger.info('Tray created')

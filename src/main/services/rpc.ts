@@ -459,6 +459,7 @@ const PAGE_LABELS: Record<string, string> = {
   fastflags: 'Editing FastFlags',
   mods: 'Managing mods',
   integrations: 'Wiring up Discord',
+  overlays: 'Arranging overlays',
   installation: 'Installing Roblox',
   cleaner: 'Cleaning up',
   logs: 'Reading logs',

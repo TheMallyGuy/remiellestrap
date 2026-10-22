@@ -62,6 +62,7 @@ import * as straps from '../services/straps'
 import * as studio from '../services/studio'
 import * as rpc from '../services/rpc'
 import * as activity from '../services/activity'
+import * as overlay from '../services/overlay'
 import * as appUpdater from '../services/appUpdater'
 import * as bootstrapper from '../core/bootstrapper'
 import * as channels from '../core/channels'
@@ -1055,6 +1056,46 @@ const handlers: HandlerMap = {
     await settingsStore.saveSettings({ windowEffect: effect })
     return applyEffect(windowFor(event) ?? null, effect)
   },
+
+  /* ------------------------------------------------------- in-game overlay */
+
+  'overlay:getState': async () => overlay.state(),
+
+  'overlay:setVisible': async (request) => {
+    const raw = requireObject(request, 'overlay visibility')
+    return overlay.setVisible(requireBoolean(raw.visible, 'visible'))
+  },
+
+  'overlay:toggle': async () => overlay.toggle(),
+
+  'overlay:preview': async (request) => {
+    const raw = requireObject(request, 'overlay preview')
+    return overlay.setPreview(requireBoolean(raw.enabled, 'enabled'))
+  },
+
+  'overlay:setPosition': async (request) => {
+    const raw = requireObject(request, 'overlay position')
+
+    // Coordinates are screen-space and may legitimately be negative on a
+    // display to the left of the primary one, so the range is generous but not
+    // unbounded: a renderer cannot fling the window somewhere unreachable.
+    return overlay.setPosition({
+      x: requireInteger(raw.x, 'x', -32_768, 32_768),
+      y: requireInteger(raw.y, 'y', -32_768, 32_768),
+      commit: optionalBoolean(raw.commit, 'commit') ?? false
+    })
+  },
+
+  'overlay:setContentSize': async (request) => {
+    const raw = requireObject(request, 'overlay size')
+
+    overlay.setContentSize(
+      requireInteger(raw.width, 'width', 120, 640),
+      requireInteger(raw.height, 'height', 28, 640)
+    )
+  },
+
+  'overlay:sample': async () => overlay.sample(),
 
   /* --------------------------------------------------- activity / rpc */
 

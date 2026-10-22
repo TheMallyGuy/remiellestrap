@@ -1,7 +1,9 @@
-import { execFile } from 'child_process'
+import { execFile, spawn, type ChildProcess } from 'child_process'
 import { availableParallelism } from 'os'
+import { screen } from 'electron'
 import type {
   OperationResult,
+  OverlayRect,
   PowerPlan,
   ProcessTweakRequest,
   ProcessTweakState
@@ -21,7 +23,9 @@ import { currentActivity, isRobloxRunning } from './activity'
  *  * CPU affinity    — the process's `ProcessorAffinity` bitmask;
  *  * memory trim     — `EmptyWorkingSet` from psapi.dll;
  *  * power plan      — `powercfg /setactive`;
- *  * GPU preference  — per-app `GpuPreference` under HKCU.
+ *  * GPU preference  — per-app `GpuPreference` under HKCU;
+ *  * window tracking — `GetWindowRect` on the client's main window, which is
+ *    what lets the in-game overlay sit on the game rather than near it.
  */
 
 const logger = createLogger('Tweaks')
@@ -395,4 +399,301 @@ export function stopMemoryTrim(): void {
 export function syncMemoryTrim(): void {
   if (getSettings().memoryTrimEnabled) startMemoryTrim()
   else stopMemoryTrim()
+}
+
+/* ------------------------------------------------- Client window tracking */
+
+/**
+ * One reading of the client's main window and process.
+ *
+ * Every field is nullable and the whole sample carries its own timestamp, so a
+ * consumer can tell "not measured yet" from "measured and unavailable" rather
+ * than drawing a zero.
+ */
+export interface ClientWindowSample {
+  /** Pid of the client process whose window was measured. */
+  pid: number | null
+  /** Window rectangle in screen coordinates. */
+  bounds: OverlayRect | null
+  /** True when that rectangle covers an entire display. */
+  fullscreen: boolean
+  workingSetBytes: number | null
+  /** Total processor seconds the process has consumed since it started. */
+  cpuSeconds: number | null
+  /**
+   * Share of every core, derived from two consecutive samples. Null until the
+   * second reading exists, because a single `TotalProcessorTime` cannot yield
+   * a rate.
+   */
+  cpuPercent: number | null
+  sampledAt: number
+  /** True while the watcher process is alive and reporting. */
+  live: boolean
+}
+
+const EMPTY_SAMPLE: ClientWindowSample = {
+  pid: null,
+  bounds: null,
+  fullscreen: false,
+  workingSetBytes: null,
+  cpuSeconds: null,
+  cpuPercent: null,
+  sampledAt: 0,
+  live: false
+}
+
+/** How often the watcher itself reads the window, independent of consumers. */
+const WATCHER_INTERVAL_MS = 400
+/** Safety net: the watcher ends itself after this long even if we forget. */
+const WATCHER_MAX_HOURS = 12
+
+let watcher: ChildProcess | null = null
+let latest: ClientWindowSample = { ...EMPTY_SAMPLE }
+/** Previous cpu reading, keyed by pid, for the derived percentage. */
+let previousCpu: { pid: number; seconds: number; at: number } | null = null
+let stdoutBuffer = ''
+
+/** True where a client window can be measured at all. */
+export function windowTrackingSupported(): boolean {
+  return process.platform === 'win32'
+}
+
+/**
+ * The watcher script.
+ *
+ * `Add-Type` compiles a small C# shim around `user32.dll`, which costs a second
+ * or two — far too slow to pay on every poll. So the shim is compiled once in a
+ * process that stays alive and prints one line per tick, exactly like the
+ * multi-instance watcher. It exits by itself when this app's process is gone, so
+ * a crash cannot leave it behind.
+ */
+function watcherScript(parentPid: number): string {
+  return `
+$ErrorActionPreference = 'SilentlyContinue'
+$parent = ${parentPid}
+$interval = ${WATCHER_INTERVAL_MS}
+$invariant = [System.Globalization.CultureInfo]::InvariantCulture
+
+$signature = @'
+using System;
+using System.Runtime.InteropServices;
+namespace Remielle {
+  public struct WinRect { public int Left; public int Top; public int Right; public int Bottom; }
+  public static class Win32 {
+    [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out WinRect rect);
+    [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);
+  }
+}
+'@
+
+try { Add-Type -TypeDefinition $signature | Out-Null }
+catch { Write-Output 'error'; exit 0 }
+
+$deadline = (Get-Date).AddHours(${WATCHER_MAX_HOURS})
+
+while ((Get-Date) -lt $deadline) {
+  if (-not (Get-Process -Id $parent)) { break }
+
+  $best = $null
+
+  foreach ($p in (Get-Process -Name 'RobloxPlayerBeta')) {
+    if ($p.MainWindowHandle -eq [IntPtr]::Zero) { continue }
+    if (-not [Remielle.Win32]::IsWindowVisible($p.MainWindowHandle)) { continue }
+
+    $rect = New-Object Remielle.WinRect
+    if (-not [Remielle.Win32]::GetWindowRect($p.MainWindowHandle, [ref]$rect)) { continue }
+
+    $width = $rect.Right - $rect.Left
+    $height = $rect.Bottom - $rect.Top
+    if ($width -le 0 -or $height -le 0) { continue }
+
+    # Multi-instance runs have several clients; the largest window is the one
+    # somebody is looking at, which is the only sensible thing to overlay.
+    if ($null -eq $best -or ($width * $height) -gt ($best.Width * $best.Height)) {
+      $cpu = 0.0
+      try { $cpu = $p.TotalProcessorTime.TotalSeconds } catch { }
+
+      $best = [pscustomobject]@{
+        Pid = $p.Id
+        Left = $rect.Left
+        Top = $rect.Top
+        Width = $width
+        Height = $height
+        WorkingSet = $p.WorkingSet64
+        Cpu = $cpu
+      }
+    }
+  }
+
+  if ($null -eq $best) {
+    Write-Output 'none'
+  } else {
+    Write-Output ([string]::Format($invariant, '{0};{1};{2};{3};{4};{5};{6}',
+      $best.Pid, $best.Left, $best.Top, $best.Width, $best.Height, $best.WorkingSet,
+      [math]::Round($best.Cpu, 3)))
+  }
+
+  Start-Sleep -Milliseconds $interval
+}
+`.trim()
+}
+
+/** True when a rectangle covers a whole display, i.e. the client is fullscreen. */
+function coversDisplay(bounds: OverlayRect): boolean {
+  try {
+    return screen.getAllDisplays().some((display) => {
+      const area = display.bounds
+      return (
+        Math.abs(area.x - bounds.x) <= 2 &&
+        Math.abs(area.y - bounds.y) <= 2 &&
+        Math.abs(area.width - bounds.width) <= 2 &&
+        Math.abs(area.height - bounds.height) <= 2
+      )
+    })
+  } catch {
+    // `screen` is unavailable before the app is ready; treat it as windowed.
+    return false
+  }
+}
+
+/** Folds one watcher line into the current sample. */
+function ingest(line: string): void {
+  const trimmed = line.trim()
+  if (trimmed.length === 0) return
+
+  if (trimmed === 'error') {
+    logger.warn('The window watcher could not load user32; tracking is unavailable')
+    latest = { ...EMPTY_SAMPLE, sampledAt: Date.now(), live: true }
+    return
+  }
+
+  if (trimmed === 'none') {
+    previousCpu = null
+    latest = { ...EMPTY_SAMPLE, sampledAt: Date.now(), live: true }
+    return
+  }
+
+  const parts = trimmed.split(';')
+  if (parts.length < 7) return
+
+  const [pid, x, y, width, height, workingSet, cpuSeconds] = parts.map((part) =>
+    Number.parseFloat(part)
+  )
+
+  if (![pid, x, y, width, height].every((value) => Number.isFinite(value))) return
+
+  const bounds: OverlayRect = {
+    x: Math.round(x),
+    y: Math.round(y),
+    width: Math.round(width),
+    height: Math.round(height)
+  }
+
+  const at = Date.now()
+  const seconds = Number.isFinite(cpuSeconds) ? cpuSeconds : null
+
+  // A rate needs two readings of the same process; the first one is only stored.
+  let cpuPercent: number | null = null
+  if (seconds !== null && previousCpu && previousCpu.pid === pid) {
+    const elapsed = (at - previousCpu.at) / 1000
+    if (elapsed > 0.2) {
+      const share = (seconds - previousCpu.seconds) / elapsed / availableParallelism()
+      cpuPercent = Math.min(100, Math.max(0, Math.round(share * 1000) / 10))
+    }
+  }
+  if (seconds !== null) previousCpu = { pid, seconds, at }
+
+  latest = {
+    pid,
+    bounds,
+    fullscreen: coversDisplay(bounds),
+    workingSetBytes: Number.isFinite(workingSet) ? Math.max(0, Math.round(workingSet)) : null,
+    cpuSeconds: seconds,
+    cpuPercent,
+    sampledAt: at,
+    live: true
+  }
+}
+
+/**
+ * Starts watching the client window. Idempotent, and a no-op off Windows.
+ *
+ * The watcher is only alive while something needs it — the overlay starts and
+ * stops it — because a process that polls the window station forever would be
+ * rude for a feature most people never switch on.
+ */
+export function startClientWindowWatcher(): boolean {
+  if (!windowTrackingSupported()) return false
+  if (watcher && !watcher.killed) return true
+
+  try {
+    const script = watcherScript(process.pid)
+    const encoded = Buffer.from(script, 'utf16le').toString('base64')
+
+    const child = spawn(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-EncodedCommand', encoded],
+      { windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] }
+    )
+
+    watcher = child
+    stdoutBuffer = ''
+    previousCpu = null
+    latest = { ...EMPTY_SAMPLE, live: true }
+
+    // `stdio` above asks for a pipe, so stdout exists; the guard keeps the type
+    // honest rather than asserting it.
+    child.stdout?.setEncoding('utf8')
+    child.stdout?.on('data', (chunk: string) => {
+      stdoutBuffer += chunk
+      const lines = stdoutBuffer.split(/\r?\n/)
+      stdoutBuffer = lines.pop() ?? ''
+      for (const line of lines) ingest(line)
+    })
+
+    child.on('error', (error) => {
+      logger.warn(`The window watcher could not start: ${error.message}`)
+      watcher = null
+      latest = { ...EMPTY_SAMPLE }
+    })
+
+    child.on('exit', (code) => {
+      // Only log the unexpected exits: stopping it ourselves is normal.
+      if (watcher === child) logger.info(`Window watcher exited with code ${code}`)
+      if (watcher === child) watcher = null
+      latest = { ...latest, live: false }
+    })
+
+    logger.info('Client window watcher started')
+    return true
+  } catch (error) {
+    logger.warn(`Client window watcher failed to start: ${String(error)}`)
+    watcher = null
+    return false
+  }
+}
+
+export function stopClientWindowWatcher(): void {
+  const child = watcher
+  watcher = null
+
+  if (child && !child.killed) {
+    try {
+      child.kill()
+    } catch {
+      /* already gone */
+    }
+  }
+
+  previousCpu = null
+  latest = { ...EMPTY_SAMPLE }
+}
+
+/** The most recent reading. Never blocks and never spawns anything. */
+export function clientWindowSample(): ClientWindowSample {
+  if (!windowTrackingSupported()) return { ...EMPTY_SAMPLE }
+
+  // A watcher that died — a machine sleeping can do it — leaves `live` false
+  // and clears its own handle, so the next `syncWatcher` starts a fresh one.
+  return { ...latest }
 }

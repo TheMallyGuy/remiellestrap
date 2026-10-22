@@ -1,7 +1,10 @@
 <script lang="ts">
+  import { acceleratorLabel } from '@shared/catalog'
   import { api } from '../ipc'
   import { activity } from '../stores/activity.svelte'
   import { navigation, setMaximized } from '../stores/navigation.svelte'
+  import { togglePalette } from '../stores/palette.svelte'
+  import { settings } from '../stores/settings.svelte'
   import Icon from './Icon.svelte'
 
   /**
@@ -14,6 +17,9 @@
    */
 
   const isMac = navigator.userAgent.includes('Macintosh')
+
+  /** Read live, so the button shows whatever the shortcut was changed to. */
+  const paletteShortcut = $derived(acceleratorLabel(settings.value.paletteHotkey))
 
   async function toggleMaximize(): Promise<void> {
     setMaximized(await api.window.maximize())
@@ -64,6 +70,22 @@
       </span>
     {/if}
   </div>
+
+  <!-- The palette's own door: the shortcut is the fast way in, but a button is
+       how anybody finds out it exists. -->
+  {#if settings.value.paletteEnabled}
+    <button
+      type="button"
+      class="no-drag mr-2 flex items-center gap-2 rounded-control px-2 py-1 text-2xs text-ivory-500 transition-colors hover:bg-ivory-100/6 hover:text-ivory-200"
+      onclick={togglePalette}
+      title="Search and run anything"
+      aria-label="Open the command palette"
+    >
+      <Icon name="search" size={13} />
+      <span class="hidden md:inline">Search</span>
+      <kbd class="chip hidden font-sans lg:inline-flex">{paletteShortcut}</kbd>
+    </button>
+  {/if}
 
   {#if !isMac}
     <div class="no-drag flex h-full items-stretch">

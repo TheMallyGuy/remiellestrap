@@ -60,3 +60,5 @@ export type IconName =
   | 'sort'
   | 'edit'
   | 'arrow-left'
+  | 'overlay'
+  | 'command'

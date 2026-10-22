@@ -3,12 +3,13 @@
  * mods, FastFlags, bootstrapper progress, playtime and system information.
  */
 
-import type { ActivityEntry } from './state'
+import type { ActivityEntry, ServerType } from './state'
 import type {
   AllowlistSeverity,
   BooruProvider,
   CleanerCategory,
   ModTarget,
+  OverlayAnchor,
   ServerSizePreference,
   ServerSortKey,
   WindowEffect
@@ -25,6 +26,8 @@ export type {
   CleanerCategory,
   LauncherStyle,
   ModTarget,
+  OverlayAnchor,
+  OverlayWidget,
   ServerSizePreference,
   ServerSortKey,
   WindowEffect
@@ -897,6 +900,107 @@ export interface PowerPlan {
   guid: string
   name: string
   active: boolean
+}
+
+/* --------------------------------------------------------------- Overlays */
+
+/** A rectangle in screen coordinates: the client window, or the overlay itself. */
+export interface OverlayRect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+/**
+ * Where a figure came from.
+ *
+ * The overlay labels every number with its provenance because most of them are
+ * not measurements of this machine: Roblox publishes an average framerate and
+ * an average ping per server, reported by the clients connected to it, and that
+ * is a genuinely useful number that would be a lie if it were labelled "yours".
+ */
+export type OverlayFigureSource = 'measured' | 'server-reported' | 'derived' | 'none'
+
+/** One overlay sample. Anything that could not be obtained is null, never guessed. */
+export interface OverlayStats {
+  sampledAt: number
+  clientRunning: boolean
+  inGame: boolean
+  gameName: string | null
+  placeId: string | null
+  jobId: string | null
+  serverType: ServerType | null
+  /** Milliseconds in this experience; the renderer ticks it forward locally. */
+  sessionMs: number | null
+  fps: number | null
+  fpsSource: OverlayFigureSource
+  ping: number | null
+  pingSource: OverlayFigureSource
+  /** Region id from the catalogue, e.g. "europe". */
+  region: string | null
+  /** Raw datacenter code the region was derived from, e.g. "FRA". */
+  datacenter: string | null
+  players: number | null
+  maxPlayers: number | null
+  workingSetBytes: number | null
+  /** Share of the whole machine the client is using, 0..100. */
+  cpuPercent: number | null
+  accountName: string | null
+  /** True while the client window was found and measured this sample. */
+  windowTracked: boolean
+  /** True when the client window covers its entire display. */
+  clientFullscreen: boolean
+  /**
+   * Honest notes about the sample: which figures are averages rather than
+   * measurements, and why anything is missing. Drawn by the Overlays page and
+   * available to the overlay as a tooltip.
+   */
+  notices: string[]
+}
+
+export interface OverlayState {
+  /** The setting, echoed back so the page can show what will happen. */
+  enabled: boolean
+  visible: boolean
+  /**
+   * False where the client window cannot be measured, so the overlay is pinned
+   * to a display instead of to the game. It still draws; it just cannot follow.
+   */
+  supported: boolean
+  /** Why it is unsupported, hidden, or not tracking — never left implied. */
+  reason: string | null
+  clickThrough: boolean
+  anchor: OverlayAnchor
+  /** Where the overlay window actually is, in screen coordinates. */
+  bounds: OverlayRect | null
+  /** True while the overlay is following a measured client window. */
+  tracking: boolean
+  /** The accelerator that was registered, null when none is live. */
+  hotkey: string | null
+  /** Set when the requested shortcut could not be registered. */
+  hotkeyError: string | null
+  /** True while drawing sample figures with no client running. */
+  preview: boolean
+  /** The card size the overlay window reported for itself. */
+  contentSize: { width: number; height: number }
+  stats: OverlayStats | null
+}
+
+export interface OverlayPositionRequest {
+  /** Screen coordinates of the overlay card's top-left corner. */
+  x: number
+  y: number
+  /**
+   * True on release rather than during the drag: the position is then stored as
+   * an offset from the client window and the anchor becomes custom.
+   */
+  commit?: boolean
+}
+
+export interface OverlayContentSizeRequest {
+  width: number
+  height: number
 }
 
 /* ------------------------------------------------------------- Activity */

@@ -22,6 +22,7 @@ const en: Dictionary = {
   'nav.servers': 'Servers',
   'nav.appearance': 'Appearance',
   'nav.behaviour': 'Behaviour',
+  'nav.overlays': 'Overlays',
   'nav.fastflags': 'FastFlags',
   'nav.mods': 'Mods',
   'nav.integrations': 'Integrations',
