@@ -4,7 +4,49 @@ All notable changes to RemielleStrap are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.3] — unreleased
+## [2.0.0] — 2026-10-22
+
+The overlay release: a card over the game, and a palette over the launcher.
+
+### Added
+
+**In-game overlay**
+
+- A transparent, always-on-top card pinned over the Roblox client window, off by
+  default and toggled with a global hotkey (`Ctrl+Shift+O`).
+- Ten widgets, each its own switch — experience, session time, account,
+  framerate, ping, region, player count, job id, client memory and client CPU —
+  with anchor, margin, hand-drag placement, opacity, scale and click-through.
+- Framerate and ping are the averages other players reported for that server, not
+  measurements of this machine; the card marks them, the sample names its source
+  per figure, and a server missing from the public list gets no figures and a
+  notice rather than a neighbour's numbers.
+- The card follows a measured client window on Windows, pins to a display
+  elsewhere, and says which it did.
+- Preview mode to place and tune the card without launching a game, labelled as a
+  preview in both the card and the page.
+- A client process watcher — one persistent hidden PowerShell, started on demand
+  and stopped when nobody wants it — for the memory, CPU and window figures.
+
+**Command palette**
+
+- A Ctrl+K command palette over every page, launch, server join, account switch,
+  mod apply and utility, plus an optional live Roblox experience search.
+
+### Changed
+
+- An **Overlays** page holds both overlays, and the tray can switch the in-game
+  card on or off or open its settings without the main window.
+- The tray menu redraws when settings change, so a switch made on a page shows up
+  in the menu that draws it.
+- Navigation lives in one shared list, so the sidebar and the palette cannot
+  disagree about which pages exist.
+
+### Documentation
+
+- Added `docs/overlay.md`, and `AGENTS.md` for contributors and coding agents.
+
+## [1.0.1] — 2026-09-14
 
 The feature-parity release: everything the launcher did, it now does alongside
 accounts, regions, richer mods, a live allowlist, Studio, and a bootstrapper you
@@ -77,26 +119,6 @@ can rewrite.
 - A first-run tour, remembered UI state, keyboard page navigation, and empty and
   error states throughout.
 
-**Overlays**
-
-- An in-game overlay: a transparent, always-on-top card pinned over the Roblox
-  client window, off by default and on a global hotkey (`Ctrl+Shift+O`).
-- Ten widgets, each its own switch — experience, session time, account,
-  framerate, ping, region, player count, job id, client memory and client CPU —
-  with anchor, margin, hand-drag placement, opacity, scale and click-through.
-- Framerate and ping are the averages other players reported for that server, not
-  measurements of this machine; the card marks them, the sample names its source
-  per figure, and a server missing from the public list gets no figures and a
-  notice rather than a neighbour's numbers.
-- The card follows a measured client window on Windows, pins to a display
-  elsewhere, and says which it did.
-- Preview mode to place and tune the card without launching a game, labelled as a
-  preview in both the card and the page.
-- A Ctrl+K command palette over every page, launch, server join, account switch,
-  mod apply and utility, plus an optional live Roblox experience search.
-- A client process watcher — one persistent hidden PowerShell, started on demand
-  and stopped when nobody wants it — for the memory, CPU and window figures.
-
 **Utilities**
 
 - Fixed version folder for tools that expect a stable path.
@@ -145,9 +167,9 @@ can rewrite.
 
 - README rewritten: features, installation, build instructions, architecture,
   manual test matrix and credits.
-- Added `docs/studio-bridge.md`, `docs/community-mods.md` and `docs/overlay.md`.
+- Added `docs/studio-bridge.md` and `docs/community-mods.md`.
 
-## [0.1.2] — 2026-09-13
+## [0.1.2] — 2026-08-15
 
 ### Added
 
