@@ -41,6 +41,30 @@ export type CleanerCategory =
 
 export type CleanerSchedule = 'manual' | 'launch' | 'daily' | 'weekly'
 
+/** Which corner of the client window the in-game overlay is pinned to. */
+export type OverlayAnchor = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'custom'
+
+/**
+ * The figures the in-game overlay can draw.
+ *
+ * Each one is its own switch: an overlay over a game is only welcome if it is
+ * small, so the defaults are the five that answer "how is this session going"
+ * and everything else is opt-in.
+ */
+export const OVERLAY_WIDGETS = [
+  'game',
+  'time',
+  'fps',
+  'ping',
+  'region',
+  'players',
+  'memory',
+  'cpu',
+  'account',
+  'server'
+] as const
+export type OverlayWidget = (typeof OVERLAY_WIDGETS)[number]
+
 /** What the launcher's Discord presence says while you browse. */
 export type RpcStatusMode = 'game' | 'generic'
 
@@ -225,6 +249,50 @@ export interface AppSettings {
   /** Write AppSettings.xml / flag files for Studio as well as the player. */
   applySettingsToStudio: boolean
 
+  /* ----------------------------------------------------------- Overlays */
+
+  /** Draw the in-game stats overlay on top of the Roblox client window. */
+  overlayEnabled: boolean
+  /** Show the overlay by itself when a game session starts. */
+  overlayAutoShow: boolean
+  /**
+   * Accelerator that toggles the overlay, in Electron's spelling
+   * ("CommandOrControl+Shift+O"). Empty means no shortcut.
+   */
+  overlayHotkey: string
+  overlayAnchor: OverlayAnchor
+  /** Gap between the overlay and the edge of the client window, in pixels. */
+  overlayMargin: number
+  /** Custom position, relative to the client window's top-left corner. */
+  overlayOffsetX: number
+  overlayOffsetY: number
+  /** 0.35..1 — an overlay is meant to be seen through. */
+  overlayOpacity: number
+  /** 0.8..1.6 — scales the whole card, including its measured size. */
+  overlayScale: number
+  /**
+   * Let clicks fall through to the game. Turned off only while dragging the
+   * overlay into place, because a window that receives clicks cannot pass them
+   * on.
+   */
+  overlayClickThrough: boolean
+  /** Follow the client window as it moves, resizes or changes display. */
+  overlayFollowWindow: boolean
+  overlayWidgets: OverlayWidget[]
+  /** Milliseconds between samples of the client window and its process. */
+  overlayRefreshMs: number
+  /** Seconds between server-list lookups behind the FPS and ping figures. */
+  overlayServerStatsSeconds: number
+
+  /* ----------------------------------------------------- Command palette */
+
+  /** The launcher's own overlay: a Ctrl+K search-and-run panel. */
+  paletteEnabled: boolean
+  /** In-app accelerator for the palette; empty means no shortcut. */
+  paletteHotkey: string
+  /** Search Roblox for experiences as you type. */
+  paletteGameSearch: boolean
+
   /* --------------------------------------------------------- Appearance */
 
   sidebarMode: SidebarMode
@@ -376,6 +444,25 @@ export const DEFAULT_SETTINGS: AppSettings = {
   fixedVersionFolder: false,
   fixedVersionFolderName: 'RobloxPlayer',
   applySettingsToStudio: false,
+
+  overlayEnabled: false,
+  overlayAutoShow: true,
+  overlayHotkey: 'CommandOrControl+Shift+O',
+  overlayAnchor: 'top-right',
+  overlayMargin: 16,
+  overlayOffsetX: 16,
+  overlayOffsetY: 16,
+  overlayOpacity: 0.9,
+  overlayScale: 1,
+  overlayClickThrough: true,
+  overlayFollowWindow: true,
+  overlayWidgets: ['game', 'time', 'fps', 'ping', 'region'],
+  overlayRefreshMs: 2000,
+  overlayServerStatsSeconds: 20,
+
+  paletteEnabled: true,
+  paletteHotkey: 'CommandOrControl+K',
+  paletteGameSearch: true,
 
   sidebarMode: 'full',
   windowEffect: 'none',

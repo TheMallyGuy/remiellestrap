@@ -129,6 +129,26 @@ appears as a sliver.
 - **Game shortcuts** with the account and region baked in, and an encrypted full
   backup with optional account export.
 
+### Overlays
+
+- **In-game overlay**: a transparent, always-on-top card pinned over the Roblox
+  client window, drawing the experience, session time, framerate, ping, region,
+  player count, job id, account, client memory and client CPU — each its own
+  switch. Off by default, on a global hotkey (`Ctrl+Shift+O`), with anchor,
+  margin, hand-drag placement, opacity, scale and click-through.
+- **Honest about its numbers.** Framerate and ping are the averages other players
+  reported for that server, not measurements of your machine, and the card marks
+  them as such. A server that is not on the public list gets no figures and says
+  so, rather than borrowing a neighbour's.
+- **Preview mode** to place and tune the card without launching a game.
+- **Command palette** (`Ctrl+K`): one search box over every page, launch, server
+  join, account switch, mod apply and utility the launcher already has, plus a
+  live Roblox experience search.
+- Window tracking and the process watcher are Windows-only; everywhere else the
+  overlay still draws, pinned to a display, and tells you which happened.
+
+See [`docs/overlay.md`](docs/overlay.md).
+
 ### Interface
 
 - **First-run tour**, remembered UI state, keyboard navigation between pages, error
@@ -183,7 +203,7 @@ Three rules keep it honest:
 
 Further reading: [`docs/studio-bridge.md`](docs/studio-bridge.md) for the Studio
 plugin interface, [`docs/community-mods.md`](docs/community-mods.md) for the
-community index format.
+community index format, [`docs/overlay.md`](docs/overlay.md) for both overlays.
 
 ## Manual test matrix
 
@@ -200,6 +220,13 @@ Worth walking through after a change that touches the launch path:
 - switch the launcher style, then use a custom definition
 - shuffle each art slot and confirm each survives a restart
 - export a backup with accounts, then import it on a clean profile
+- turn on the in-game overlay, launch a game, confirm it follows the client window
+  through a move, a resize and a monitor change
+- drag the overlay by hand, restart, confirm it stayed where you put it
+- switch off every widget but one, then all of them, and confirm the card resizes
+  rather than leaving an empty box
+- open the palette with Ctrl+K, run a page, a launch and an account switch
+- set an overlay hotkey another app already owns and confirm the page reports it
 
 ## Credits
 

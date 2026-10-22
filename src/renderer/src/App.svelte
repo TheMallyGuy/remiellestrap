@@ -28,10 +28,21 @@
   } from './lib/stores/navigation.svelte'
   import { applyPlaytime, loadPlaytime } from './lib/stores/playtime.svelte'
   import { applyExternalSettings, loadSettings, settings } from './lib/stores/settings.svelte'
+  import { applyOverlayState, applyOverlayStats, loadOverlay } from './lib/stores/overlay.svelte'
+  import { isPaletteShortcut, togglePalette } from './lib/stores/palette.svelte'
   import { pushToast } from './lib/stores/toasts.svelte'
   import { setLanguage } from './lib/i18n'
+  import { PAGE_SHORTCUT_ORDER } from './lib/nav'
+  import {
+    applyAccent,
+    applyCustomFont,
+    applyReduceMotion,
+    applySidebarMode,
+    applyThemeMode
+  } from './lib/appearance'
 
   import AppBackground from './lib/components/AppBackground.svelte'
+  import CommandPalette from './lib/components/CommandPalette.svelte'
   import Sidebar from './lib/components/Sidebar.svelte'
   import TitleBar from './lib/components/TitleBar.svelte'
   import Toasts from './lib/components/Toasts.svelte'
@@ -46,6 +57,7 @@
   import InstallationPage from './lib/pages/InstallationPage.svelte'
   import IntegrationsPage from './lib/pages/IntegrationsPage.svelte'
   import ModsPage from './lib/pages/ModsPage.svelte'
+  import OverlaysPage from './lib/pages/OverlaysPage.svelte'
   import ServersPage from './lib/pages/ServersPage.svelte'
   import UtilitiesPage from './lib/pages/UtilitiesPage.svelte'
 
@@ -82,7 +94,8 @@
       loadPlaytime(),
       syncProgress(),
       loadAllArt(),
-      loadAppUpdate()
+      loadAppUpdate(),
+      loadOverlay()
     ])
 
     booted = true
@@ -137,6 +150,11 @@
       listen('app:update', (payload) => applyAppUpdate(payload)),
       listen('window:state', (payload) => applyWindowState(payload)),
 
+      // The overlay lives in the main process; the page only mirrors it, so the
+      // two arrive as separate streams — state when it changes, samples per tick.
+      listen('overlay:state', (payload) => applyOverlayState(payload)),
+      listen('overlay:stats', (payload) => applyOverlayStats(payload)),
+
       // A deep link that arrived while the app was already running, or a tray
       // menu item. Both come through as a navigation request; the bootstrapper
       // overlay is opened by the main process sending progress right after.
@@ -156,86 +174,28 @@
     setLanguage(settings.value.language)
   })
 
+  // Everything below is one call per setting, implemented in `lib/appearance.ts`
+  // rather than here: the install window and the in-game overlay are separate
+  // documents that have to look like this one, and a second copy of the theme
+  // logic is a copy that drifts.
+
   // `reduceMotion` is honoured by every animation utility through this class,
   // so components never have to check the setting themselves.
-  $effect(() => {
-    document.documentElement.classList.toggle('reduce-motion', settings.value.reduceMotion)
-  })
+  $effect(() => applyReduceMotion(settings.value.reduceMotion))
 
-  // The accent picker is applied as a `data-accent` attribute on <html> so the
-  // stylesheet can remap the accent ramp; components never read the setting.
-  $effect(() => {
-    document.documentElement.dataset.accent =
-      settings.value.accentMode === 'prism' ? 'prism' : 'gold'
-  })
+  // The accent picker remaps the gold ramp to prism rose, in the stylesheet.
+  $effect(() => applyAccent(settings.value.accentMode))
 
-  // The sidebar width is a display mode, not a layout hack: the rail itself
-  // reads this attribute and hides its labels when it is set to icons.
-  $effect(() => {
-    document.documentElement.dataset.sidebar = settings.value.sidebarMode
-  })
+  // The sidebar width is a display mode: the rail reads the attribute.
+  $effect(() => applySidebarMode(settings.value.sidebarMode))
 
-  // A custom font is loaded from the app's own folder and then named through a
-  // single CSS variable, so no component has to know a font was chosen.
-  $effect(() => {
-    const file = settings.value.fontFile
-    const family = settings.value.fontFamily
-    const root = document.documentElement
+  // A custom font is loaded from the app's own folder and named through a single
+  // CSS variable, so no component has to know a font was chosen.
+  $effect(() => applyCustomFont(settings.value.fontFile, settings.value.fontFamily))
 
-    let element: HTMLStyleElement | null = null
-
-    if (file) {
-      const name = `RemielleUserFont`
-      element = document.createElement('style')
-      element.textContent = `@font-face { font-family: '${name}'; src: url('app://font/${encodeURIComponent(
-        file.split(/[\\/]/).pop() ?? file
-      )}'); font-display: swap; }`
-      document.head.appendChild(element)
-      root.style.setProperty('--font-sans', `'${name}', var(--font-sans-default)`)
-    } else if (family) {
-      root.style.setProperty('--font-sans', `'${family}', var(--font-sans-default)`)
-    } else {
-      root.style.removeProperty('--font-sans')
-    }
-
-    return () => {
-      element?.remove()
-      root.style.removeProperty('--font-sans')
-    }
-  })
-
-  /* ------------------------------------------------------------ Themes */
-
-  // Three of the built-in themes are not simple light/dark variants: they remap
-  // the whole ramp (see `main.css`). They are applied as classes on <html> so
-  // every utility picks them up at once.
-  $effect(() => {
-    const theme = settings.value.theme
-    const root = document.documentElement
-
-    const variants = ['prism-night', 'ivory-cathedral', 'gold-ember'] as const
-    for (const variant of variants) {
-      root.classList.toggle(`theme-${variant}`, theme === variant)
-    }
-
-    const media = window.matchMedia('(prefers-color-scheme: light)')
-
-    const apply = (): void => {
-      const light =
-        theme === 'light' || theme === 'ivory-cathedral' || (theme === 'system' && media.matches)
-
-      root.classList.toggle('theme-light', light)
-      root.style.colorScheme = light ? 'light' : 'dark'
-    }
-
-    apply()
-
-    // Only the 'system' setting needs to follow the OS; the explicit modes are
-    // already applied above.
-    if (theme === 'system') media.addEventListener('change', apply)
-
-    return () => media.removeEventListener('change', apply)
-  })
+  // Three of the built-in themes remap the whole ramp rather than flipping a
+  // light/dark flag; `system` additionally follows the operating system.
+  $effect(() => applyThemeMode(settings.value.theme))
 
   /* ------------------------------------------------------------- Shortcuts */
 
@@ -245,21 +205,22 @@
       event.preventDefault()
     }
 
-    // Ctrl/Cmd+1..9 jumps between pages, in rail order.
-    if ((event.ctrlKey || event.metaKey) && /^[1-9]$/.test(event.key)) {
-      const order = [
-        'home',
-        'accounts',
-        'servers',
-        'appearance',
-        'behaviour',
-        'mods',
-        'fastflags',
-        'integrations',
-        'utilities'
-      ] as const
+    // The command palette is the launcher's own overlay: one keystroke to
+    // summon, one to dismiss, and it never fires from inside a text field that
+    // already handled the key.
+    if (isPaletteShortcut(event)) {
+      event.preventDefault()
+      togglePalette()
+      return
+    }
 
-      const target = order[Number.parseInt(event.key, 10) - 1]
+    // Ctrl/Cmd+1..9 jumps between pages in rail order, and Ctrl/Cmd+0 the tenth,
+    // so every daily page keeps a number now that Overlays joined the rail.
+    if ((event.ctrlKey || event.metaKey) && /^[0-9]$/.test(event.key)) {
+      const digit = Number.parseInt(event.key, 10)
+      const index = digit === 0 ? 9 : digit - 1
+      const target = PAGE_SHORTCUT_ORDER[index]
+
       if (target) {
         event.preventDefault()
         applyNavigation(target)
@@ -303,6 +264,8 @@
             <AppearancePage />
           {:else if navigation.page === 'behaviour'}
             <BehaviourPage />
+          {:else if navigation.page === 'overlays'}
+            <OverlaysPage />
           {:else if navigation.page === 'fastflags'}
             <FastFlagsPage />
           {:else if navigation.page === 'mods'}
@@ -323,6 +286,10 @@
 </div>
 
 <Toasts />
+
+<!-- Drawn last so it sits above the page, the toasts and any dialog. It renders
+     nothing at all until summoned. -->
+<CommandPalette />
 
 {#if showOnboarding && booted}
   <OnboardingDialog onclose={() => (showOnboarding = false)} />

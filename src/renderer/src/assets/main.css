@@ -257,6 +257,21 @@
   }
 
   /*
+   * The in-game overlay window.
+   *
+   * It is a transparent, always-on-top rectangle that the main process sizes to
+   * the card the renderer measured, so the document must contribute no
+   * background of its own and must not clip the card while that measurement is
+   * still on its way back.
+   */
+  :root.overlay-view body,
+  :root.overlay-view #app {
+    height: auto;
+    overflow: visible;
+    background: transparent;
+  }
+
+  /*
    * Light theme.
    *
    * Rather than a second palette, the ink and ivory ramps are swapped in

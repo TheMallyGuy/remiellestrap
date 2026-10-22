@@ -8,9 +8,10 @@ import {
   type AppSettings,
   type ArtSlot,
   type BooruTagMap,
-  type CleanerCategory
+  type CleanerCategory,
+  type OverlayWidget
 } from '@shared/settings'
-import { CLEANER_TARGETS } from '@shared/catalog'
+import { CLEANER_TARGETS, OVERLAY_WIDGET_CATALOG } from '@shared/catalog'
 import { paths } from '../utils/paths'
 import { ensureDir, readJson, writeJson } from '../utils/fs'
 import { createLogger } from '../utils/logger'
@@ -139,6 +140,65 @@ function nullablePath(value: unknown, fallback: string | null): string | null {
 }
 
 const CLEANER_IDS = CLEANER_TARGETS.map((target) => target.id)
+
+const OVERLAY_WIDGET_IDS = OVERLAY_WIDGET_CATALOG.map((widget) => widget.id)
+
+/** The widgets the overlay draws when a stored list is missing or empty. */
+function coerceOverlayWidgets(value: unknown, fallback: OverlayWidget[]): OverlayWidget[] {
+  if (!Array.isArray(value)) return [...fallback]
+
+  const allowed = new Set<string>(OVERLAY_WIDGET_IDS)
+  const out = value.filter(
+    (item): item is OverlayWidget => typeof item === 'string' && allowed.has(item)
+  )
+
+  // De-duplicated but deliberately allowed to be empty: an overlay with nothing
+  // on it is a choice the user can make, and it renders as a hairline pill.
+  return [...new Set(out)]
+}
+
+/**
+ * An Electron accelerator, or the fallback.
+ *
+ * Only a conservative shape is accepted — up to three modifiers and one key —
+ * because the string is handed straight to `globalShortcut.register`, and a
+ * typo should fall back rather than throw at start-up.
+ */
+function coerceAccelerator(value: unknown, fallback: string): string {
+  const raw = str(value, '', 64).trim()
+  if (raw.length === 0) return ''
+
+  const parts = raw.split('+').map((part) => part.trim())
+  if (parts.length === 0 || parts.length > 4 || parts.some((part) => part.length === 0)) {
+    return fallback
+  }
+
+  const modifiers = new Set([
+    'commandorcontrol',
+    'cmdorctrl',
+    'control',
+    'ctrl',
+    'command',
+    'cmd',
+    'super',
+    'meta',
+    'alt',
+    'option',
+    'shift'
+  ])
+
+  const key = parts[parts.length - 1]
+  const head = parts.slice(0, -1)
+
+  if (!head.every((part) => modifiers.has(part.toLowerCase()))) return fallback
+  if (
+    !/^([A-Za-z0-9]|F([1-9]|1[0-9]|2[0-4])|(plus|space|tab|enter|escape|media[a-z]+))$/i.test(key)
+  ) {
+    return fallback
+  }
+
+  return [...head, key].join('+')
+}
 
 function coerceCleanerTargets(value: unknown, fallback: CleanerCategory[]): CleanerCategory[] {
   if (!Array.isArray(value)) return [...fallback]
@@ -353,6 +413,38 @@ export function coerceSettings(input: unknown, base: AppSettings = DEFAULT_SETTI
         : base.fixedVersionFolderName
     })(),
     applySettingsToStudio: bool(value('applySettingsToStudio'), base.applySettingsToStudio),
+
+    /* Overlays */
+    overlayEnabled: bool(value('overlayEnabled'), base.overlayEnabled),
+    overlayAutoShow: bool(value('overlayAutoShow'), base.overlayAutoShow),
+    overlayHotkey: coerceAccelerator(value('overlayHotkey'), base.overlayHotkey),
+    overlayAnchor: pick(
+      value('overlayAnchor'),
+      ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'custom'] as const,
+      base.overlayAnchor
+    ),
+    overlayMargin: int(value('overlayMargin'), base.overlayMargin, 0, 200),
+    overlayOffsetX: int(value('overlayOffsetX'), base.overlayOffsetX, -4096, 8192),
+    overlayOffsetY: int(value('overlayOffsetY'), base.overlayOffsetY, -4096, 8192),
+    overlayOpacity: num(value('overlayOpacity'), base.overlayOpacity, 0.35, 1),
+    overlayScale: num(value('overlayScale'), base.overlayScale, 0.8, 1.6),
+    overlayClickThrough: bool(value('overlayClickThrough'), base.overlayClickThrough),
+    overlayFollowWindow: bool(value('overlayFollowWindow'), base.overlayFollowWindow),
+    overlayWidgets: has('overlayWidgets')
+      ? coerceOverlayWidgets(source.overlayWidgets, base.overlayWidgets)
+      : [...base.overlayWidgets],
+    overlayRefreshMs: int(value('overlayRefreshMs'), base.overlayRefreshMs, 500, 15_000),
+    overlayServerStatsSeconds: int(
+      value('overlayServerStatsSeconds'),
+      base.overlayServerStatsSeconds,
+      5,
+      300
+    ),
+
+    /* Command palette */
+    paletteEnabled: bool(value('paletteEnabled'), base.paletteEnabled),
+    paletteHotkey: coerceAccelerator(value('paletteHotkey'), base.paletteHotkey),
+    paletteGameSearch: bool(value('paletteGameSearch'), base.paletteGameSearch),
 
     /* Appearance */
     sidebarMode: pick(

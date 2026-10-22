@@ -235,5 +235,13 @@
   {:else if name === 'arrow-left'}
     <path d="M20 12H4" />
     <path d="m9.5 6.5-5.5 5.5 5.5 5.5" />
+  {:else if name === 'overlay'}
+    <!-- A card pinned over a window: the launcher's own picture of an overlay. -->
+    <rect x="2.75" y="4.75" width="18.5" height="14.5" rx="2" />
+    <path d="M2.75 8.5h18.5" />
+    <rect x="12.25" y="11" width="6.5" height="5.5" rx="1" />
+    <path d="M5.5 12.5h4M5.5 15h2.5" />
+  {:else if name === 'command'}
+    <path d="M9 6a2 2 0 1 0-2 2h10a2 2 0 1 0-2-2v12a2 2 0 1 0 2-2H7a2 2 0 1 0 2 2V6Z" />
   {/if}
 </svg>

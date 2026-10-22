@@ -65,6 +65,9 @@ import type {
   ModEntry,
   ModTargetRequest,
   OperationResult,
+  OverlayPositionRequest,
+  OverlayState,
+  OverlayStats,
   PlaytimeSummary,
   PowerPlan,
   ProcessTweakRequest,
@@ -424,6 +427,19 @@ const api = {
     getEffect: (): Promise<WindowEffectState> => invoke('window:getEffect'),
     setEffect: (effect: WindowEffect): Promise<WindowEffectState> =>
       invoke('window:setEffect', { effect })
+  },
+
+  overlay: {
+    getState: (): Promise<OverlayState> => invoke('overlay:getState'),
+    setVisible: (visible: boolean): Promise<OverlayState> =>
+      invoke('overlay:setVisible', { visible }),
+    toggle: (): Promise<OverlayState> => invoke('overlay:toggle'),
+    preview: (enabled: boolean): Promise<OverlayState> => invoke('overlay:preview', { enabled }),
+    setPosition: (request: OverlayPositionRequest): Promise<OverlayState> =>
+      invoke('overlay:setPosition', request),
+    setContentSize: (width: number, height: number): Promise<void> =>
+      invoke('overlay:setContentSize', { width, height }),
+    sample: (): Promise<OverlayStats> => invoke('overlay:sample')
   },
 
   activity: {

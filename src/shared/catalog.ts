@@ -15,6 +15,8 @@ import type {
   CleanerCategory,
   LauncherStyle,
   ModTarget,
+  OverlayAnchor,
+  OverlayWidget,
   SidebarMode,
   WindowEffect
 } from './settings'
@@ -393,6 +395,177 @@ export const LAUNCHER_STYLES: readonly {
   { value: 'minimal', label: 'Minimal', hint: 'Text and a hairline only.' },
   { value: 'custom', label: 'Custom definition', hint: 'Your own JSON definition below.' }
 ] as const
+
+/* -------------------------------------------------------------- Overlays */
+
+export interface OverlayWidgetDefinition {
+  id: OverlayWidget
+  label: string
+  /** What the figure is, and where it comes from. */
+  hint: string
+  /** Grouping used by the Overlays page so the switches read as a list. */
+  group: 'session' | 'server' | 'system'
+  /**
+   * True when the figure is not measured on this machine, so the overlay draws
+   * it with its provenance next to it rather than implying a local reading.
+   */
+  reported: boolean
+}
+
+/**
+ * Every figure the in-game overlay can draw.
+ *
+ * Roblox gives an outside process very little: it publishes a public server
+ * list carrying the average framerate and average ping its connected clients
+ * reported, and everything else has to be derived from the client's own log,
+ * its process, or this launcher's bookkeeping. The `reported` flag is what
+ * keeps that distinction visible in the interface instead of buried in a
+ * comment.
+ */
+export const OVERLAY_WIDGET_CATALOG: readonly OverlayWidgetDefinition[] = [
+  {
+    id: 'game',
+    label: 'Experience',
+    hint: 'The name of what you are playing, from the activity watcher.',
+    group: 'session',
+    reported: false
+  },
+  {
+    id: 'time',
+    label: 'Session time',
+    hint: 'How long you have been in this experience, ticking locally.',
+    group: 'session',
+    reported: false
+  },
+  {
+    id: 'account',
+    label: 'Account',
+    hint: 'The stored account this session was launched as.',
+    group: 'session',
+    reported: false
+  },
+  {
+    id: 'fps',
+    label: 'Framerate',
+    hint: 'The average FPS other players reported for this server, not yours.',
+    group: 'server',
+    reported: true
+  },
+  {
+    id: 'ping',
+    label: 'Ping',
+    hint: 'The average ping reported for this server, not measured here.',
+    group: 'server',
+    reported: true
+  },
+  {
+    id: 'region',
+    label: 'Region',
+    hint: 'The datacenter this server runs in, mapped to a readable region.',
+    group: 'server',
+    reported: true
+  },
+  {
+    id: 'players',
+    label: 'Players',
+    hint: 'How full this server is, out of its capacity.',
+    group: 'server',
+    reported: true
+  },
+  {
+    id: 'server',
+    label: 'Server id',
+    hint: 'The job id of the server you are connected to.',
+    group: 'server',
+    reported: false
+  },
+  {
+    id: 'memory',
+    label: 'Client memory',
+    hint: 'The working set of the Roblox process on this machine.',
+    group: 'system',
+    reported: false
+  },
+  {
+    id: 'cpu',
+    label: 'Client CPU',
+    hint: 'Share of every core the Roblox process is using, sampled per tick.',
+    group: 'system',
+    reported: false
+  }
+] as const
+
+export function overlayWidget(id: string): OverlayWidgetDefinition | null {
+  return OVERLAY_WIDGET_CATALOG.find((widget) => widget.id === id) ?? null
+}
+
+export const OVERLAY_ANCHORS: readonly { value: OverlayAnchor; label: string; hint: string }[] = [
+  { value: 'top-left', label: 'Top left', hint: 'Away from the health bar in most experiences.' },
+  { value: 'top-right', label: 'Top right', hint: 'The default; clear of the chat and the menu.' },
+  { value: 'bottom-left', label: 'Bottom left', hint: 'Below the chat window.' },
+  { value: 'bottom-right', label: 'Bottom right', hint: 'Where the hotbar usually is.' },
+  { value: 'custom', label: 'Custom', hint: 'An offset you set by dragging the overlay.' }
+] as const
+
+/**
+ * Shortcut presets for the two overlays.
+ *
+ * Any valid Electron accelerator may be typed instead; these are only the ones
+ * that are unlikely to collide with a game or with the launcher's own Ctrl+1..9
+ * page shortcuts.
+ */
+export const OVERLAY_HOTKEY_PRESETS: readonly string[] = [
+  'CommandOrControl+Shift+O',
+  'CommandOrControl+Shift+F9',
+  'CommandOrControl+Alt+O',
+  'F13',
+  ''
+] as const
+
+export const PALETTE_HOTKEY_PRESETS: readonly string[] = [
+  'CommandOrControl+K',
+  'CommandOrControl+Shift+K',
+  'CommandOrControl+J',
+  'CommandOrControl+P',
+  ''
+] as const
+
+/** Reads an accelerator for display: "CommandOrControl+Shift+O" -> "Ctrl Shift O". */
+export function acceleratorLabel(accelerator: string | null | undefined): string {
+  if (!accelerator || accelerator.trim().length === 0) return 'None'
+
+  const isMac = typeof navigator !== 'undefined' && navigator.userAgent.includes('Macintosh')
+
+  return accelerator
+    .split('+')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      switch (part.toLowerCase()) {
+        case 'commandorcontrol':
+        case 'cmdorctrl':
+          return isMac ? '⌘' : 'Ctrl'
+        case 'control':
+        case 'ctrl':
+          return isMac ? '⌃' : 'Ctrl'
+        case 'command':
+        case 'cmd':
+          return '⌘'
+        case 'super':
+        case 'meta':
+          return isMac ? '⌘' : 'Win'
+        case 'alt':
+          return isMac ? '⌥' : 'Alt'
+        case 'option':
+          return isMac ? '⌥' : 'Alt'
+        case 'shift':
+          return isMac ? '⇧' : 'Shift'
+        default:
+          return part.length === 1 ? part.toUpperCase() : part
+      }
+    })
+    .join(isMac ? '' : ' + ')
+}
 
 /* ------------------------------------------------------------ Capture flags */
 

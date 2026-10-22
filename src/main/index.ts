@@ -15,6 +15,7 @@ import * as studio from './services/studio'
 import * as tweaks from './services/tweaks'
 import * as cleaner from './services/cleaner'
 import * as multiInstance from './services/multiInstance'
+import * as overlay from './services/overlay'
 import * as playtime from './services/playtime'
 import { disposeIpcHandlers, registerIpcHandlers } from './ipc/index'
 import { installCsp } from './app/csp'
@@ -163,6 +164,7 @@ async function bootstrap(): Promise<void> {
     tweaks.syncMemoryTrim()
     void studio.sync()
     cleaner.scheduleTimer()
+    overlay.sync()
   })
 
   // Studio presence and the crash handler only matter while the client runs,
@@ -170,6 +172,10 @@ async function bootstrap(): Promise<void> {
   if (settings.crashHandlerAutoClose) crashHandler.start()
   tweaks.syncMemoryTrim()
   void studio.start()
+
+  // Registers the overlay's global shortcut and, if a client is somehow already
+  // running, picks the session up rather than waiting for the next join.
+  overlay.sync()
 
   createMainWindow()
   startAppUpdater()
@@ -220,6 +226,7 @@ app.on('will-quit', () => {
   activity.stop()
   rpc.stop()
   crashHandler.stop()
+  overlay.dispose()
   tweaks.stopMemoryTrim()
   studio.stop()
   cleaner.stopScheduleTimer()

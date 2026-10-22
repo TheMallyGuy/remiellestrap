@@ -11,6 +11,7 @@ export const PAGES = [
   'servers',
   'appearance',
   'behaviour',
+  'overlays',
   'fastflags',
   'mods',
   'integrations',

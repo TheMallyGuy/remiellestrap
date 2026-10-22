@@ -1,5 +1,6 @@
 <script lang="ts">
-  import type { NavItem, PageId } from '../types'
+  import type { PageId } from '../types'
+  import { NAV_ITEMS } from '../nav'
   import { goTo, navigation } from '../stores/navigation.svelte'
   import { activity } from '../stores/activity.svelte'
   import { bootstrapper } from '../stores/bootstrapper.svelte'
@@ -12,56 +13,12 @@
    * Kept to a single narrow column of plain labels — no nested trees, no
    * badges competing for attention. A slim Remielle portrait sits at the foot
    * of the rail as the app's only persistent piece of art.
+   *
+   * The items themselves live in `lib/nav.ts`, shared with the command palette
+   * and the page shortcuts, so the three cannot disagree about an order.
    */
 
-  const ITEMS: NavItem[] = [
-    { id: 'home', label: 'Home', hint: 'Launch Roblox and see what you last played', icon: 'home' },
-    {
-      id: 'accounts',
-      label: 'Accounts',
-      hint: 'Stored logins, presence and one-click joins',
-      icon: 'user'
-    },
-    {
-      id: 'servers',
-      label: 'Servers',
-      hint: 'Region preference and the public server browser',
-      icon: 'globe'
-    },
-    {
-      id: 'appearance',
-      label: 'Appearance',
-      hint: 'Theme, accent and the Remielle artwork',
-      icon: 'palette'
-    },
-    {
-      id: 'behaviour',
-      label: 'Behaviour',
-      hint: 'How the bootstrapper acts around a launch',
-      icon: 'sliders'
-    },
-    { id: 'fastflags', label: 'FastFlags', hint: 'Client engine flag profiles', icon: 'flag' },
-    { id: 'mods', label: 'Mods', hint: 'File overrides applied to the client', icon: 'layers' },
-    {
-      id: 'integrations',
-      label: 'Integrations',
-      hint: 'Discord presence and activity tracking',
-      icon: 'plug'
-    },
-    {
-      id: 'utilities',
-      label: 'Utilities',
-      hint: 'Cleaner, logs, client settings, tweaks and backups',
-      icon: 'wrench'
-    },
-    {
-      id: 'installation',
-      label: 'Installation',
-      hint: 'Channel, versions, install location and repair',
-      icon: 'download'
-    },
-    { id: 'about', label: 'About', hint: 'Version, credits and licences', icon: 'info' }
-  ]
+  const ITEMS = NAV_ITEMS
 
   function select(page: PageId): void {
     goTo(page)

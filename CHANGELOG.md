@@ -77,6 +77,26 @@ can rewrite.
 - A first-run tour, remembered UI state, keyboard page navigation, and empty and
   error states throughout.
 
+**Overlays**
+
+- An in-game overlay: a transparent, always-on-top card pinned over the Roblox
+  client window, off by default and on a global hotkey (`Ctrl+Shift+O`).
+- Ten widgets, each its own switch — experience, session time, account,
+  framerate, ping, region, player count, job id, client memory and client CPU —
+  with anchor, margin, hand-drag placement, opacity, scale and click-through.
+- Framerate and ping are the averages other players reported for that server, not
+  measurements of this machine; the card marks them, the sample names its source
+  per figure, and a server missing from the public list gets no figures and a
+  notice rather than a neighbour's numbers.
+- The card follows a measured client window on Windows, pins to a display
+  elsewhere, and says which it did.
+- Preview mode to place and tune the card without launching a game, labelled as a
+  preview in both the card and the page.
+- A Ctrl+K command palette over every page, launch, server join, account switch,
+  mod apply and utility, plus an optional live Roblox experience search.
+- A client process watcher — one persistent hidden PowerShell, started on demand
+  and stopped when nobody wants it — for the memory, CPU and window figures.
+
 **Utilities**
 
 - Fixed version folder for tools that expect a stable path.
@@ -125,7 +145,7 @@ can rewrite.
 
 - README rewritten: features, installation, build instructions, architecture,
   manual test matrix and credits.
-- Added `docs/studio-bridge.md` and `docs/community-mods.md`.
+- Added `docs/studio-bridge.md`, `docs/community-mods.md` and `docs/overlay.md`.
 
 ## [0.1.2] — 2026-09-13
 
