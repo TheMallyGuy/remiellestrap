@@ -1,3 +1,4 @@
+import { app } from 'electron'
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'crypto'
 import { writeFile } from 'fs/promises'
 import { join } from 'path'
@@ -160,7 +161,7 @@ export async function exportBackup(request: BackupRequest): Promise<OperationRes
     app: 'RemielleStrap',
     format: 1,
     createdAt: Date.now(),
-    appVersion: '1.0.1',
+    appVersion: app.getVersion(),
     platform: process.platform,
     sections,
     accountsEncrypted: request.includeAccounts

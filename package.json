@@ -1,6 +1,6 @@
 {
   "name": "remiellestrap",
-  "version": "1.0.1",
+  "version": "2.0.0",
   "description": "A Remielle-themed Roblox bootstrapper and launcher",
   "main": "./out/main/index.js",
   "author": "TheMallyGuy",
