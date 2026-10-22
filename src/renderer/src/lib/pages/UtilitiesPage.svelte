@@ -10,6 +10,7 @@
     StrapDetection
   } from '@shared/models'
   import type { CleanerCategory } from '@shared/settings'
+  import { untrack } from 'svelte'
   import { CLEANER_TARGETS, REGION_CATALOG } from '@shared/catalog'
   import { api, errorMessage, listen, safeInvoke } from '../ipc'
   import { accounts } from '../stores/accounts.svelte'
@@ -97,11 +98,14 @@
   let detections = $state<StrapDetection[]>([])
 
   $effect(() => {
-    void refreshScan()
-    void loadLogs()
-    void loadClientSettings()
-    void loadTweaks()
-    void loadStraps()
+    // Initial loads only; untracked so state they touch cannot re-run this effect.
+    untrack(() => {
+      void refreshScan()
+      void loadLogs()
+      void loadClientSettings()
+      void loadTweaks()
+      void loadStraps()
+    })
 
     return listen('logs:line', (payload) => {
       if (payload.path !== selectedLog) return
@@ -112,7 +116,8 @@
   async function refreshScan(): Promise<void> {
     scanning = true
     try {
-      scan = await api.cleaner.scan(selectedTargets)
+      // Proxies cannot cross the context bridge.
+      scan = await api.cleaner.scan($state.snapshot(selectedTargets))
     } catch (error) {
       pushToast({ kind: 'warning', title: 'Scan failed', message: errorMessage(error) })
     } finally {
@@ -131,7 +136,10 @@
     confirmClean = false
 
     try {
-      const result = await api.cleaner.run({ targets: selectedTargets, dryRun })
+      const result = await api.cleaner.run({
+        targets: $state.snapshot(selectedTargets),
+        dryRun
+      })
       if (result.errors.length > 0) {
         pushToast({ kind: 'warning', title: 'Finished with problems', message: result.errors[0] })
       } else {
